@@ -1,7 +1,7 @@
 CXX = g++
 
 # compiler warning flags
-WFLAGS = -Wall -W -Wextra -pedantic
+WFLAGS = -Wall -W -Wextra -pedantic -Wno-attributes
 
 # debug build flags
 #DBFLAGS = -ggdb -pg
