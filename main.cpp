@@ -634,9 +634,15 @@ int main(int argc, char *argv[]) {
 		auto_array_ptr<t_float> dist_resampled;
 		dist_resampled.init(NN);
 
+        if(verbosity>1) std::cout << "Distance matrix...";
 		get_distances(rr, colinds, dist_resampled, distmethod);
+        if(verbosity>1) std::cout << "done." << std::endl;
+        
+        if(verbosity>1) std::cout << "Fastcluster...";
 		run_fastcluster(bs_result, dist_resampled, method);
-		dist_resampled.free();
+        if(verbosity>1) std::cout << "done." << std::endl;
+		
+        dist_resampled.free();
 
 		//bootstrap_results.push_back(bs_result);
 
@@ -657,8 +663,7 @@ int main(int argc, char *argv[]) {
 		of << bs << '\n';
 		of.close();
 
-		if(verbosity>1) std::cout << "done." << std::endl;
-		else std::cout << '.' << std::flush;
+		if(verbosity<2) std::cout << '.' << std::flush;
 
 	}
 	std::cout << std::endl;
