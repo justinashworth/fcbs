@@ -45,7 +45,7 @@ void pearson_distances(Matrix const & matrix, Indices const & colinds, t_float *
 	size_t const nrow(matrix.size()), ncol(colinds.size());
 	size_t r1(0), r2(0), i(0);
 	std::ptrdiff_t p(0);
-	t_float EX(0.0), EY(0.0), EXX(0.0), EYY(0.0), EXY(0.0), x(0.0), y(0.0), d(0.0), num(0.0), denom(0.0);
+	t_float EX(0.0), EY(0.0), EXX(0.0), EYY(0.0), EXY(0.0), x(0.0), y(0.0), d(0.0), denom(0.0);
 	unsigned npairs(0);
 	for(r1=0; r1<(nrow-1); ++r1){
 		for(r2=r1+1; r2<nrow; ++r2){
@@ -71,25 +71,17 @@ void pearson_distances(Matrix const & matrix, Indices const & colinds, t_float *
 				if(denom>0) d = 1.0 - (EXY - EX*EY/npairs) / sqrt(denom);
 			}
 
-			//std::cerr << d << std::endl;
+			/*std::cerr << d << std::endl;
 			if(fc_isnan(d)){
+				t_float num(EXY - EX*EY/npairs);
 				std::cerr << "nan distance value for r1 " << r1 << " r2 " << r2 << " EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
 				std::cerr << "colinds:";
 				for(i=0; i<ncol; ++i) std::cerr << " " << colinds[i];
 				std::cerr << std::endl;
-			}
+			}*/
 			dist[p++] = d;
 		}
 	}
-}
-
-bool is_number(const std::string& s){
-	if(s.empty()) return false;
-	for(std::string::const_iterator it(s.begin()); it!=s.end(); ++it){
-		if(std::isdigit(*it) || (it==s.begin() && *it=='-')) continue;
-		return false;
-	}
-	return true;
 }
 
 // begin Spearman code
@@ -186,7 +178,7 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 
 	// pairwise pearson correlations of the pre-computed spearman ranks
 	std::ptrdiff_t p(0);
-	t_float EX(0.0), EY(0.0), EXX(0.0), EYY(0.0), EXY(0.0), x(0.0), y(0.0), d(0.0), num(0.0), denom(0.0);
+	t_float EX(0.0), EY(0.0), EXX(0.0), EYY(0.0), EXY(0.0), x(0.0), y(0.0), d(0.0), denom(0.0);
 	size_t r1(0), r2(0), i(0);
 	unsigned npairs(0);
 	for(r1=0; r1<(nrow-1); ++r1){
@@ -214,10 +206,11 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 				if(denom>0) d = 1.0 - (EXY - EX*EY/npairs) / sqrt(denom);
 			}
 
-			//std::cerr << d << std::endl;
+			/*std::cerr << d << std::endl;
 			if(fc_isnan(d)){
+				t_float num(EXY - EX*EY/npairs);
 				std::cerr << "nan distance value for r1 " << r1 << " r2 " << r2 << " EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
-			}
+			}*/
 
 			dist[p++] = d;
 
@@ -517,10 +510,11 @@ void get_distances(
 ////////////////////////////////////////////////////////////////////////////////
 void usage_error(){
 	std::cerr << "\n"
-	<< " -r|--ratios     ratiosfile\n"
-	<< " -b|--bootstraps     #              : number of bootstraps\n"
-	<< " -m|--method     #              : clustering method (0. single, 1. complete, 2. average, 3. weighted, 4. ward, 5. centroid, 6. median)\n"
-	<< " -d|--distance  [distance metric] : distance metric (supported: pearson or spearman)"
+	<< " -r     ratiosfile\n"
+	<< " -b     #              : number of bootstraps\n"
+	<< " -m     #              : clustering method (0. single, 1. complete, 2. average, 3. weighted, 4. ward, 5. centroid, 6. median)\n"
+	<< " -d [distance metric] : distance metric (supported: pearson or spearman)"
+	<< " -v # : verbosity (1 or 2)"
 	<< "example: [executable] -r ratios.tab\n"
 	<< "\n";
 	exit(EXIT_FAILURE);
@@ -534,7 +528,7 @@ int main(int argc, char *argv[]) {
 	std::cout << std::endl;
 
 	std::string ratiosfilename, distmethod;
-	unsigned bootstraps(0);
+	unsigned bootstraps(0), verbosity(1);
 	int method(4); // ward
 	double scale(1.0); // ratio of columns to resample for multiscale bootstrapping
 
@@ -545,26 +539,30 @@ int main(int argc, char *argv[]) {
 
 		std::string arg(argv[i]);
 
-		if (arg == "-r" || arg == "--ratios") {
+		if (arg == "-r") {
 			if (++i >= argc) usage_error();
 			ratiosfilename = argv[i];
 
-		} else if (arg == "-b" || arg == "--bootstraps") {
+		} else if (arg == "-b") {
 			if (++i >= argc) usage_error();
 			bootstraps = atoi(argv[i]);
 
-		} else if (arg == "-s" || arg == "--scale") {
+		} else if (arg == "-s") {
 			if (++i >= argc) usage_error();
 			scale = atof(argv[i]);
 
-		} else if (arg == "-m" || arg == "--method") {
+		} else if (arg == "-m") {
 			if (++i >= argc) usage_error();
 			method = atoi(argv[i]);
 
-		} else if (arg == "-d" || arg == "--distance") {
+		} else if (arg == "-d") {
 			if (++i >= argc) usage_error();
 			distmethod = argv[i];
-
+			
+		} else if (arg == "-v") {
+			if (++i >= argc) usage_error();
+			verbosity = atoi(argv[i]);
+			
 		} else if (arg == "-h" || arg == "--help") usage_error();
 	}
 
@@ -573,9 +571,11 @@ int main(int argc, char *argv[]) {
 	Labels labels;
 	read_matrix_file(ratiosfilename, rr, labels);
 
-	//size_t ntest(std::min(size_t(5),rr.size()));
-	//size_t nprint(ntest);
-	//	for(size_t i(0); i<ntest; ++i){ std::cout << ids[i] << " " << rr[i] << std::endl; }
+	if(verbosity>1){
+		size_t ntest(std::min(size_t(5),rr.size()));
+		std::cout << "Sample data:" << std::endl;
+		for(size_t i(0); i<ntest; ++i){ std::cout << labels[i] << " " << rr[i] << std::endl; }
+	}
 
 	const size_t nrow(rr.size()), ncol(rr.front().size());
 
@@ -611,7 +611,8 @@ int main(int argc, char *argv[]) {
 	std::cout << "Bootstrap iterations..." << std::endl;
 	unsigned nsample(ncol*scale);
 	for(unsigned bs(0); bs<bootstraps; ++bs){
-
+		if(verbosity>1) std::cout << "Bootstrap iteration " << bs << std::endl;
+		
 		HclustResult bs_result;
 		// store ids
 		for(size_t i(0); i<labels.size(); ++i) bs_result.labels.push_back(labels[i]);
@@ -623,9 +624,11 @@ int main(int argc, char *argv[]) {
 		// this sort probably not necessary
 		//std::sort(colinds.begin(), colinds.end());
 
-		/*std::cerr << "Colinds: ";
-		 for(t_index i(0); i<nsample; ++i) std::cerr << colinds[i] << " ";
-		 std::cerr << std::endl;*/
+		if(verbosity>1){
+			std::cout << "Colinds: ";
+			for(t_index i(0); i<nsample; ++i) std::cout << colinds[i] << " ";
+			std::cout << std::endl;
+		}
 
 		// resample from columns and create a new distance matrix
 		auto_array_ptr<t_float> dist_resampled;
@@ -654,7 +657,8 @@ int main(int argc, char *argv[]) {
 		of << bs << '\n';
 		of.close();
 
-		std::cout << '.' << std::flush;
+		if(verbosity>1) std::cout << "done." << std::endl;
+		else std::cout << '.' << std::flush;
 
 	}
 	std::cout << std::endl;
