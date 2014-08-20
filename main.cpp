@@ -12,7 +12,7 @@
 #include <iomanip>
 #include <set>
 
-#include "fastcluster_add.cpp"
+#include "fastcluster.lib.cpp"
 
 typedef std::vector<t_float> Values;
 typedef std::vector<Values> Matrix;
