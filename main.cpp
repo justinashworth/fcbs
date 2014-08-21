@@ -421,7 +421,7 @@ void output_hclust(HclustResult const & result, std::string prefix=""){
 
 }
 
-void run_fastcluster(HclustResult & hclust_result, t_float * dist, int method){
+void run_fastcluster(HclustResult & hclust_result, t_float * dist, int method, bool sqrt_heights=false){
 	//std::cout << "Fastcluster..." << std::endl;
 
 	if (method<METHOD_METR_SINGLE || method>METHOD_METR_MEDIAN) {
@@ -477,6 +477,12 @@ void run_fastcluster(HclustResult & hclust_result, t_float * dist, int method){
 	else
 		generate_R_dendrogram<false>(&merge[0], &hclust_result.height[0], &hclust_result.order[0], hc, N);
 
+    // methods 4, 5, and 6 (Euclidean methods) expect squared distances, and then the R heights must be square rooted to reflect methods accurate to Ward's original method
+    if(sqrt_heights){
+        for(Values::iterator it(hclust_result.height.begin()); it!=hclust_result.height.end(); ++it)
+            *it = sqrt(*it);
+    }
+
 	// convert merge (flat array) into two-column Merge matrix for later convenience/intelligibility
 	hclust_result.merge.resize(N-1);
 	for(int i(0); i<N-1; ++i){
@@ -492,7 +498,8 @@ void get_distances(
                    Matrix const & matrix,
                    Indices const & colinds,
                    t_float * const dist,
-                   std::string method="pearson"
+                   std::string method="pearson",
+                   bool square_distances=false
                    ){
 	if(method=="pearson") pearson_distances(matrix, colinds, dist);
 	else if(method=="spearman") spearman_distances(matrix, colinds, dist);
@@ -500,6 +507,11 @@ void get_distances(
 		std::cerr << "ERROR: Unsupported distance metric " << method << std::endl;
 		exit(EXIT_FAILURE);
 	}
+
+    if(square_distances){
+        const std::ptrdiff_t NN = static_cast<std::ptrdiff_t>((matrix.size())*(matrix.size()-1)/2);
+        for(std::ptrdiff_t p(0); p<NN; ++p) dist[p] *= dist[p];
+    }
 }
 
 std::string method_str(int method){
@@ -517,11 +529,12 @@ std::string method_str(int method){
 ////////////////////////////////////////////////////////////////////////////////
 void usage_error(){
 	std::cerr << "\n"
-	<< " -r     ratiosfile\n"
-	<< " -b     #              : number of bootstraps\n"
-	<< " -m     #              : clustering method (0. single, 1. complete, 2. average, 3. weighted, 4. ward, 5. centroid, 6. median)\n"
-	<< " -d [distance metric] : distance metric (supported: pearson or spearman)"
-	<< " -v # : verbosity (1 or 2)"
+	<< " -r [file]            : matrix of values to cluster, first row is ignored, first column is item labels\n"
+	<< " -b #                 : number of bootstraps\n"
+	<< " -m [hclust method]   : clustering method (0. single, 1. complete, 2. average, 3. weighted, 4. ward, 5. centroid, 6. median)\n"
+    << " -D2                  : flag: square distances? Default is false, but expected by Ward, centroid and median methods in current version (1.1.13) of fastcluster.\n"
+	<< " -d [distance metric] : distance metric (supported: pearson or spearman)\n"
+	<< " -v #                 : verbosity (1 or 2)\n"
 	<< "example: [executable] -r ratios.tab\n"
 	<< "\n";
 	exit(EXIT_FAILURE);
@@ -536,7 +549,8 @@ int main(int argc, char *argv[]) {
 
 	std::string ratiosfilename, distmethod;
 	unsigned bootstraps(0), verbosity(1);
-	int method(4); // ward
+	int method(2); // average
+    bool square_distances(false);
 	t_float scale(1.0); // ratio of columns to resample for multiscale bootstrapping
 
 	if (argc < 2) usage_error();
@@ -561,10 +575,15 @@ int main(int argc, char *argv[]) {
 		} else if (arg == "-m") {
 			if (++i >= argc) usage_error();
 			method = atoi(argv[i]);
+            if(method>3) std::cout << "Squared distances are expected for this method: recommend restarting with the -D2 flag" << std::endl;
 
 		} else if (arg == "-d") {
 			if (++i >= argc) usage_error();
 			distmethod = argv[i];
+
+		} else if (arg == "-D2") {
+			square_distances = true;
+            std::cout << "Euclidean method: distances will be squared and heights will be square rooted" << std::endl;
 
 		} else if (arg == "-v") {
 			if (++i >= argc) usage_error();
@@ -572,6 +591,8 @@ int main(int argc, char *argv[]) {
 
 		} else if (arg == "-h" || arg == "--help") usage_error();
 	}
+
+    if(method<4 && square_distances) std::cout << "-D2 flag is set to true but distance method is not expecting squared distances. Recommend restarting without the -D2 flag" << std::endl;
 
 	// read in matrix
 	Matrix rr;
@@ -599,7 +620,7 @@ int main(int argc, char *argv[]) {
 
 	// feed whole matrix to distance functions:
 	// for Spearman, this way can pre-compute ranks prior to the N^2 loop
-	get_distances(rr, colinds, dist, distmethod);
+	get_distances(rr, colinds, dist, distmethod, square_distances);
 
 	// here: do a non-bootstrapped hclust
 	HclustResult result;
@@ -607,7 +628,7 @@ int main(int argc, char *argv[]) {
 	for(size_t i(0); i<labels.size(); ++i) result.labels.push_back(labels[i]);
 
     std::cout << "Fastcluster with method " << method << " (" << method_str(method) << ")" << std::endl;
-	run_fastcluster(result, dist, method);
+	run_fastcluster(result, dist, method, square_distances);
 
 	// output result
 	output_hclust(result,"hc.");
@@ -643,10 +664,10 @@ int main(int argc, char *argv[]) {
 		dist_resampled.init(NN);
 
         if(verbosity>1) std::cout << "Distance matrix..." << std::endl;
-		get_distances(rr, colinds, dist_resampled, distmethod);
+		get_distances(rr, colinds, dist_resampled, distmethod, square_distances);
 
         if(verbosity>1) std::cout << "Fastcluster..." << std::endl;
-		run_fastcluster(bs_result, dist_resampled, method);
+		run_fastcluster(bs_result, dist_resampled, method, square_distances);
 
         dist_resampled.free();
 
