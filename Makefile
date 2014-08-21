@@ -5,7 +5,7 @@ WFLAGS = -Wall -W -Wextra -pedantic -Wno-attributes
 
 # debug build flags
 #DBFLAGS = -ggdb -pg
-DBFLAGS = -ggdb
+DBFLAGS = -ggdb -static
 CXXFLAGS = $(WFLAGS) $(DBFLAGS)
 
 # performance build flags
