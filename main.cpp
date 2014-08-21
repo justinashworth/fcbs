@@ -488,7 +488,7 @@ void run_fastcluster(HclustResult & hclust_result, t_float * dist, int method){
 
 	// convert merge (flat array) into two-column Merge matrix for later convenience/intelligibility
 	hclust_result.merge.resize(N-1);
-	for(size_t i(0); i<N-1; ++i){
+	for(int i(0); i<N-1; ++i){
 		hclust_result.merge[i].resize(2);
 		// merge array is filled by column
 		for(size_t j(0); j<2; ++j) hclust_result.merge[i][j] = merge[i+(N-1)*j];
@@ -621,7 +621,7 @@ int main(int argc, char *argv[]) {
 	Counts nodecounts(result.merge.size(),0);
 
 	std::cout << "Bootstrap iterations..." << std::endl;
-	unsigned nsample(ncol*scale);
+	unsigned nsample((unsigned)round(ncol*scale));
 	for(unsigned bs(0); bs<bootstraps; ++bs){
 		if(verbosity>1) std::cout << "Bootstrap iteration " << bs << std::endl;
 		
