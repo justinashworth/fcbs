@@ -24,7 +24,7 @@ typedef std::vector<int> Ints;
 typedef std::vector<Ints> Members;
 typedef std::vector<Ints> Merge;
 
-static t_float const NANVALUE = std::numeric_limits<double>::quiet_NaN();
+static t_float const NANVALUE = std::numeric_limits<t_float>::quiet_NaN();
 
 struct HclustResult {
 	Labels labels;
@@ -86,7 +86,7 @@ void pearson_distances(Matrix const & matrix, Indices const & colinds, t_float *
 
 // begin Spearman code
 struct OrdVal{
-	double val;
+	t_float val;
 	size_t orig_ind;
 };
 bool sortbyval(OrdVal const & ov1, OrdVal const & ov2){
@@ -120,7 +120,7 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 		OrdVals ordvals;
 		unsigned colcounter(0);
 		for(Indices::const_iterator col(colinds.begin()); col!=colinds.end(); ++col){
-			double val(matrix[row][*col]);
+			t_float val(matrix[row][*col]);
             //std::cout << '\t' << *col << " " << val << std::endl;
 			OrdVal ov;
 			ov.val = val;
@@ -140,33 +140,26 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 		// compute ranks in ascending order (nan's last)
 		Values rowranks(ncol,NANVALUE);
 		Ties ties;
-		double last(0);
-		unsigned naiverank(0);
+		t_float last(0);
+        unsigned naiverank(0);
 		for(size_t i(0); i<ncol; ++i){
-            double val(ordvals[i].val);
+            t_float val(ordvals[i].val);
 			if(fc_isnan(val)){
                 // sort function ensures nan values are at the end, so these can just pass through
 				rowranks[i] = val;
 				continue;
 			}
 			// ranks are 1-indexed (though this shouldn't matter?)
-			else rowranks[i] = naiverank+1;
+			else rowranks[i] = (t_float)(naiverank+1);
 
 			// deal with ties
 			if(val == last){
 				ties.insert(naiverank+1);
-				ties.insert(naiverank);
+				if(i>0) ties.insert(naiverank);
 			} else {
 				t_float rank(0);
-				for(Ties::const_iterator t(ties.begin()); t!=ties.end(); ++t){
-                    if(fc_isnan(*t)){
-                        std::cerr << "nan in tied ranks: this shouldn't happen" << std::endl;
-                        exit(EXIT_FAILURE);
-                    }
-                    rank += *t;
-                }
-				rank /= ties.size();
-				for(size_t ip(0); ip<ties.size(); ++ip) rowranks[i-ip-1] = rank;
+				for(Ties::const_iterator t(ties.begin()); t!=ties.end(); ++t) rank += *t;
+				for(size_t ip(0); ip<ties.size(); ++ip) rowranks[i-ip-1] = rank/ties.size();
 				ties.clear();
 			}
 
@@ -177,15 +170,8 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 		// process final ties
 		if(!ties.empty()){
 			t_float rank(0);
-			for(Ties::const_iterator t(ties.begin()); t!=ties.end(); ++t){
-                if(fc_isnan(*t)){
-                    std::cerr << "nan in tied ranks: this shouldn't happen" << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-                rank += *t;
-            }
-			rank /= ties.size();
-			for(size_t ip(0); ip<ties.size(); ++ip) rowranks[naiverank-ip-1] = rank;
+			for(Ties::const_iterator t(ties.begin()); t!=ties.end(); ++t) rank += *t;
+			for(size_t ip(0); ip<ties.size(); ++ip) rowranks[naiverank-ip-1] = rank / ties.size();
 		}
 
 		// now 'unsort' the ranks so that any pair of two ranks will re-correspond to each other
@@ -547,7 +533,7 @@ int main(int argc, char *argv[]) {
 	std::string ratiosfilename, distmethod;
 	unsigned bootstraps(0), verbosity(1);
 	int method(4); // ward
-	double scale(1.0); // ratio of columns to resample for multiscale bootstrapping
+	t_float scale(1.0); // ratio of columns to resample for multiscale bootstrapping
 
 	if (argc < 2) usage_error();
 
