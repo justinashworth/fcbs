@@ -71,14 +71,14 @@ void pearson_distances(Matrix const & matrix, Indices const & colinds, t_float *
 				if(denom>0) d = 1.0 - (EXY - EX*EY/npairs) / sqrt(denom);
 			}
 
-			/*std::cerr << d << std::endl;
-			if(fc_isnan(d)){
-				t_float num(EXY - EX*EY/npairs);
-				std::cerr << "nan distance value for r1 " << r1 << " r2 " << r2 << " EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
-				std::cerr << "colinds:";
-				for(i=0; i<ncol; ++i) std::cerr << " " << colinds[i];
-				std::cerr << std::endl;
-			}*/
+			//std::cerr << d << std::endl;
+            if(fc_isnan(d)){
+                t_float num(EXY - EX*EY/npairs);
+                std::cerr << "nan distance value for r1 " << r1 << " r2 " << r2 << " EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
+                std::cerr << "colinds:";
+                for(i=0; i<ncol; ++i) std::cerr << " " << colinds[i];
+                std::cerr << std::endl;
+            }
 			dist[p++] = d;
 		}
 	}
@@ -116,7 +116,7 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 	Matrix ranks(nrow);
 	for(size_t row(0); row<nrow; ++row){
         //std::cout << row << std::endl;
-        
+
 		OrdVals ordvals;
 		unsigned colcounter(0);
 		for(Indices::const_iterator col(colinds.begin()); col!=colinds.end(); ++col){
@@ -131,59 +131,67 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 		}
         //std::cout << std::endl;
 		std::sort(ordvals.begin(), ordvals.end(), sortbyval);
-   
+
 		Indices rankorder;
 		for(size_t i(0); i<ordvals.size(); ++i) rankorder.push_back(ordvals[i].orig_ind);
 
         //for(size_t i(0); i<ordvals.size(); ++i) std::cout << '\t' << i << " " << ordvals[i].val << " " << ordvals[i].orig_ind << std::endl;
-        
-		// compute ranks
-		Values rowranks;
+
+		// compute ranks in ascending order (nan's last)
+		Values rowranks(ncol,NANVALUE);
 		Ties ties;
 		double last(0);
-		unsigned vali(0);
+		unsigned naiverank(0);
 		for(size_t i(0); i<ncol; ++i){
-			size_t const o(rankorder[i]);
-			//double val(matrix[row+nrow*o]);
-			double val(matrix[row][o]);
+            double val(ordvals[i].val);
 			if(fc_isnan(val)){
                 // sort function ensures nan values are at the end, so these can just pass through
-				rowranks.push_back(val);
+				rowranks[i] = val;
 				continue;
 			}
 			// ranks are 1-indexed (though this shouldn't matter?)
-			else rowranks.push_back(vali+1);
-
-			//std::cout << i << " " << vali+1 << " " << xi << " " << x << " " << yi << " " << y << std::endl;
+			else rowranks[i] = naiverank+1;
 
 			// deal with ties
 			if(val == last){
-				ties.insert(vali+1);
-				ties.insert(vali);
+				ties.insert(naiverank+1);
+				ties.insert(naiverank);
 			} else {
 				t_float rank(0);
-				for(Ties::const_iterator t(ties.begin()); t!=ties.end(); ++t) rank += *t;
+				for(Ties::const_iterator t(ties.begin()); t!=ties.end(); ++t){
+                    if(fc_isnan(*t)){
+                        std::cerr << "nan in tied ranks: this shouldn't happen" << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                    rank += *t;
+                }
 				rank /= ties.size();
 				for(size_t ip(0); ip<ties.size(); ++ip) rowranks[i-ip-1] = rank;
 				ties.clear();
 			}
 
 			last = val;
-			++vali;
+			++naiverank;
 		}
 
 		// process final ties
 		if(!ties.empty()){
 			t_float rank(0);
-			for(Ties::const_iterator tt(ties.begin()); tt!=ties.end(); ++tt) rank += *tt;
+			for(Ties::const_iterator t(ties.begin()); t!=ties.end(); ++t){
+                if(fc_isnan(*t)){
+                    std::cerr << "nan in tied ranks: this shouldn't happen" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                rank += *t;
+            }
 			rank /= ties.size();
-			for(size_t ip(0); ip<ties.size(); ++ip) rowranks[vali-ip-1] = rank;
+			for(size_t ip(0); ip<ties.size(); ++ip) rowranks[naiverank-ip-1] = rank;
 		}
 
 		// now 'unsort' the ranks so that any pair of two ranks will re-correspond to each other
 		ranks[row].resize(rankorder.size());
 		for(size_t i(0); i<rankorder.size(); ++i) ranks[row][rankorder[i]] = rowranks[i];
-        
+
         //std::cout << "Ranks:";
         //for(size_t i(0); i<ranks[row].size(); ++i) std::cout << '\t' << i << " " << ranks[row][i] << std::endl;
 	}
@@ -231,10 +239,10 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 }
 
 void read_matrix_file(
-								 std::string const & filename,
-								 Matrix & rr,
-								 Labels & ids
-								 ){
+                      std::string const & filename,
+                      Matrix & rr,
+                      Labels & ids
+                      ){
 	// open input file
 	std::ifstream file;
 	file.open( filename.c_str() );
@@ -263,12 +271,9 @@ void read_matrix_file(
 				continue;
 			}
 			// the rest should be numbers, but sometimes "NA"
-			// set any "NA"s to a magic big number to keep track later
 			t_float value;
 			if(token=="NA") value=NANVALUE;
-//			else value=std::stof(token); // this is c++11 (not always available)
 			else value=std::atof(token.c_str());
-			//			std::cerr << value << std::endl;
 			ratios.push_back(value);
 		}
 
@@ -506,11 +511,11 @@ void run_fastcluster(HclustResult & hclust_result, t_float * dist, int method){
 }
 
 void get_distances(
-									 Matrix const & matrix,
-									 Indices const & colinds,
-									 t_float * const dist,
-									 std::string method="pearson"
-									 ){
+                   Matrix const & matrix,
+                   Indices const & colinds,
+                   t_float * const dist,
+                   std::string method="pearson"
+                   ){
 	if(method=="pearson") pearson_distances(matrix, colinds, dist);
 	else if(method=="spearman") spearman_distances(matrix, colinds, dist);
 	else{
@@ -570,11 +575,11 @@ int main(int argc, char *argv[]) {
 		} else if (arg == "-d") {
 			if (++i >= argc) usage_error();
 			distmethod = argv[i];
-			
+
 		} else if (arg == "-v") {
 			if (++i >= argc) usage_error();
 			verbosity = atoi(argv[i]);
-			
+
 		} else if (arg == "-h" || arg == "--help") usage_error();
 	}
 
@@ -624,7 +629,7 @@ int main(int argc, char *argv[]) {
 	unsigned nsample((unsigned)round(ncol*scale));
 	for(unsigned bs(0); bs<bootstraps; ++bs){
 		if(verbosity>1) std::cout << "Bootstrap iteration " << bs << std::endl;
-		
+
 		HclustResult bs_result;
 		// store ids
 		for(size_t i(0); i<labels.size(); ++i) bs_result.labels.push_back(labels[i]);
@@ -636,7 +641,7 @@ int main(int argc, char *argv[]) {
 		// this sort probably not necessary
 		//std::sort(colinds.begin(), colinds.end());
 
-		if(verbosity>1){
+		if(verbosity>2){
 			std::cout << "Colinds: ";
 			for(t_index i(0); i<nsample; ++i) std::cout << colinds[i] << " ";
 			std::cout << std::endl;
@@ -646,14 +651,12 @@ int main(int argc, char *argv[]) {
 		auto_array_ptr<t_float> dist_resampled;
 		dist_resampled.init(NN);
 
-        if(verbosity>1) std::cout << "Distance matrix...";
+        if(verbosity>1) std::cout << "Distance matrix..." << std::endl;
 		get_distances(rr, colinds, dist_resampled, distmethod);
-        if(verbosity>1) std::cout << "done." << std::endl;
-        
-        if(verbosity>1) std::cout << "Fastcluster...";
+
+        if(verbosity>1) std::cout << "Fastcluster..." << std::endl;
 		run_fastcluster(bs_result, dist_resampled, method);
-        if(verbosity>1) std::cout << "done." << std::endl;
-		
+
         dist_resampled.free();
 
 		//bootstrap_results.push_back(bs_result);
