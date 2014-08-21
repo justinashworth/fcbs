@@ -575,7 +575,6 @@ int main(int argc, char *argv[]) {
 		} else if (arg == "-m") {
 			if (++i >= argc) usage_error();
 			method = atoi(argv[i]);
-            if(method>3) std::cout << "Squared distances are expected for this method: recommend restarting with the -D2 flag" << std::endl;
 
 		} else if (arg == "-d") {
 			if (++i >= argc) usage_error();
@@ -583,7 +582,7 @@ int main(int argc, char *argv[]) {
 
 		} else if (arg == "-D2") {
 			square_distances = true;
-            std::cout << "Euclidean method: distances will be squared and heights will be square rooted" << std::endl;
+            std::cout << "-D2 flag: distances will be squared and heights will be square rooted" << std::endl;
 
 		} else if (arg == "-v") {
 			if (++i >= argc) usage_error();
@@ -593,6 +592,8 @@ int main(int argc, char *argv[]) {
 	}
 
     if(method<4 && square_distances) std::cout << "-D2 flag is set to true but distance method is not expecting squared distances. Recommend restarting without the -D2 flag" << std::endl;
+
+    if(method>3 && !square_distances) std::cout << "Squared distances are expected for this method but -D2 flag is missing: recommend restarting with the -D2 flag" << std::endl;
 
 	// read in matrix
 	Matrix rr;
