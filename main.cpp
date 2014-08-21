@@ -89,7 +89,12 @@ struct OrdVal{
 	double val;
 	size_t orig_ind;
 };
-bool sortbyval(OrdVal const & ov1, OrdVal const & ov2){return ov1.val < ov2.val;}
+bool sortbyval(OrdVal const & ov1, OrdVal const & ov2){
+    if(fc_isnan(ov1.val) && fc_isnan(ov2.val)) return false;
+    if(fc_isnan(ov1.val) && !fc_isnan(ov2.val)) return false;
+    if(!fc_isnan(ov1.val) && fc_isnan(ov2.val)) return true;
+    return ov1.val < ov2.val;
+}
 typedef std::vector<OrdVal> OrdVals;
 
 typedef std::vector<Indices> IndMatrix;
@@ -110,10 +115,13 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 	size_t const nrow(matrix.size()), ncol(colinds.size());
 	Matrix ranks(nrow);
 	for(size_t row(0); row<nrow; ++row){
+        //std::cout << row << std::endl;
+        
 		OrdVals ordvals;
 		unsigned colcounter(0);
 		for(Indices::const_iterator col(colinds.begin()); col!=colinds.end(); ++col){
 			double val(matrix[row][*col]);
+            //std::cout << '\t' << *col << " " << val << std::endl;
 			OrdVal ov;
 			ov.val = val;
 			// don't store *col here, store the original order in which the sampled columns were added
@@ -121,13 +129,14 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 			ordvals.push_back(ov);
 			++colcounter;
 		}
+        //std::cout << std::endl;
 		std::sort(ordvals.begin(), ordvals.end(), sortbyval);
-
+   
 		Indices rankorder;
 		for(size_t i(0); i<ordvals.size(); ++i) rankorder.push_back(ordvals[i].orig_ind);
-		//        std::copy(rankorder.begin(), rankorder.end(), std::ostream_iterator<size_t>(std::cout," "));
-		//        std::cout << std::endl;
 
+        //for(size_t i(0); i<ordvals.size(); ++i) std::cout << '\t' << i << " " << ordvals[i].val << " " << ordvals[i].orig_ind << std::endl;
+        
 		// compute ranks
 		Values rowranks;
 		Ties ties;
@@ -138,6 +147,7 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 			//double val(matrix[row+nrow*o]);
 			double val(matrix[row][o]);
 			if(fc_isnan(val)){
+                // sort function ensures nan values are at the end, so these can just pass through
 				rowranks.push_back(val);
 				continue;
 			}
@@ -161,7 +171,6 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 			last = val;
 			++vali;
 		}
-		// std::cout << xranks.size() << std::endl;
 
 		// process final ties
 		if(!ties.empty()){
@@ -174,6 +183,9 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 		// now 'unsort' the ranks so that any pair of two ranks will re-correspond to each other
 		ranks[row].resize(rankorder.size());
 		for(size_t i(0); i<rankorder.size(); ++i) ranks[row][rankorder[i]] = rowranks[i];
+        
+        //std::cout << "Ranks:";
+        //for(size_t i(0); i<ranks[row].size(); ++i) std::cout << '\t' << i << " " << ranks[row][i] << std::endl;
 	}
 
 	// pairwise pearson correlations of the pre-computed spearman ranks
@@ -206,11 +218,11 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 				if(denom>0) d = 1.0 - (EXY - EX*EY/npairs) / sqrt(denom);
 			}
 
-			/*std::cerr << d << std::endl;
+			//std::cerr << d << std::endl;
 			if(fc_isnan(d)){
 				t_float num(EXY - EX*EY/npairs);
 				std::cerr << "nan distance value for r1 " << r1 << " r2 " << r2 << " EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
-			}*/
+			}
 
 			dist[p++] = d;
 
@@ -571,7 +583,7 @@ int main(int argc, char *argv[]) {
 	Labels labels;
 	read_matrix_file(ratiosfilename, rr, labels);
 
-	if(verbosity>1){
+	if(verbosity>2){
 		size_t ntest(std::min(size_t(5),rr.size()));
 		std::cout << "Sample data:" << std::endl;
 		for(size_t i(0); i<ntest; ++i){ std::cout << labels[i] << " " << rr[i] << std::endl; }
