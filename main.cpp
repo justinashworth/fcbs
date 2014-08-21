@@ -486,14 +486,6 @@ void run_fastcluster(HclustResult & hclust_result, t_float * dist, int method){
 	}
 
 	members.free();
-
-	/*
-	 //debug check for proper merge conversion to STL container
-	 for(size_t i(0); i<hclust_result.merge.size(); ++i){
-	 std::cout << i << " ";
-	 for(size_t j(0); j<2; ++j) std::cout << hclust_result.merge[i][j] << " ";
-	 std::cout << std::endl;
-	 }*/
 }
 
 void get_distances(
@@ -508,6 +500,18 @@ void get_distances(
 		std::cerr << "ERROR: Unsupported distance metric " << method << std::endl;
 		exit(EXIT_FAILURE);
 	}
+}
+
+std::string method_str(int method){
+    std::string str("unknown");
+    if(method==0) return "single";
+    if(method==1) return "complete";
+    if(method==2) return "average";
+    if(method==3) return "weighted";
+    if(method==4) return "ward";
+    if(method==5) return "centroid";
+    if(method==6) return "median";
+    return str;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -602,6 +606,7 @@ int main(int argc, char *argv[]) {
 	// store labels
 	for(size_t i(0); i<labels.size(); ++i) result.labels.push_back(labels[i]);
 
+    std::cout << "Fastcluster with method " << method << " (" << method_str(method) << ")" << std::endl;
 	run_fastcluster(result, dist, method);
 
 	// output result
