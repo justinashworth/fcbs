@@ -39,7 +39,47 @@ std::ostream & operator << (std::ostream & out, Values const & vals ){
 	return out;
 }
 
-// colinds allows computing pearson over arbitrary combinations of columns (useful for bootstrapping)
+// squared euclidean distance matrix
+// colinds allows efficient computing of distances over arbitrary combinations of columns (useful for bootstrapping)
+void euclidean_D2(Matrix const & matrix, Indices const & colinds, t_float * const dist){
+	// pairwise euclidean distances
+	size_t const nrow(matrix.size()), ncol(colinds.size());
+	size_t r1(0), r2(0), i(0);
+	std::ptrdiff_t p(0);
+	t_float x(0.0), y(0.0), diff(0.0), d(0.0);
+	unsigned npairs(0);
+	for(r1=0; r1<(nrow-1); ++r1){
+		for(r2=r1+1; r2<nrow; ++r2){
+			d=0;
+			npairs=0;
+			for(i=0; i<ncol; ++i){
+				x = matrix[r1][colinds[i]];
+				y = matrix[r2][colinds[i]];
+				if(fc_isnan(x) || fc_isnan(y)) continue;
+				++npairs;
+				diff = x-y;
+				// here not sqrt-ing (yet) to save time (some downstream applications accept squared distances, e.g. Ward clustering)
+				d += diff*diff;
+			}
+
+			if(npairs<1){
+				std::cerr << "NA distance due to completely non-overlapping data: this is not allowed for Euclidean distance metrics! Imputation is recommended (e.g. K-nearest neighbors)" << std::endl;
+				exit(EXIT_FAILURE);
+				dist[p++] = NANVALUE;
+
+			} else {
+				// in the case of any partially missing data, upscale the calculated distance to promote comparability between all different numbers of pairwise comparisons
+				d *= ncol/npairs;
+				dist[p++] = d;
+
+			}
+		}
+
+	}
+
+}
+
+// colinds allows efficient computing of pearson over arbitrary combinations of columns (useful for bootstrapping)
 void pearson_distances(Matrix const & matrix, Indices const & colinds, t_float * const dist, bool pairwise_complete_obs=true){
 	// pairwise pearson correlations
 	size_t const nrow(matrix.size()), ncol(colinds.size());
@@ -72,13 +112,13 @@ void pearson_distances(Matrix const & matrix, Indices const & colinds, t_float *
 			}
 
 			//std::cerr << d << std::endl;
-            if(fc_isnan(d)){
-                t_float num(EXY - EX*EY/npairs);
-                std::cerr << "nan distance value for r1 " << r1 << " r2 " << r2 << " EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
-                std::cerr << "colinds:";
-                for(i=0; i<ncol; ++i) std::cerr << " " << colinds[i];
-                std::cerr << std::endl;
-            }
+			if(fc_isnan(d)){
+				t_float num(EXY - EX*EY/npairs);
+				std::cerr << "nan distance value for r1 " << r1 << " r2 " << r2 << " EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
+				std::cerr << "colinds:";
+				for(i=0; i<ncol; ++i) std::cerr << " " << colinds[i];
+				std::cerr << std::endl;
+			}
 			dist[p++] = d;
 		}
 	}
@@ -90,10 +130,10 @@ struct OrdVal{
 	size_t orig_ind;
 };
 bool sortbyval(OrdVal const & ov1, OrdVal const & ov2){
-    if(fc_isnan(ov1.val) && fc_isnan(ov2.val)) return false;
-    if(fc_isnan(ov1.val) && !fc_isnan(ov2.val)) return false;
-    if(!fc_isnan(ov1.val) && fc_isnan(ov2.val)) return true;
-    return ov1.val < ov2.val;
+	if(fc_isnan(ov1.val) && fc_isnan(ov2.val)) return false;
+	if(fc_isnan(ov1.val) && !fc_isnan(ov2.val)) return false;
+	if(!fc_isnan(ov1.val) && fc_isnan(ov2.val)) return true;
+	return ov1.val < ov2.val;
 }
 typedef std::vector<OrdVal> OrdVals;
 
@@ -115,13 +155,13 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 	size_t const nrow(matrix.size()), ncol(colinds.size());
 	Matrix ranks(nrow);
 	for(size_t row(0); row<nrow; ++row){
-        //std::cout << row << std::endl;
+		//std::cout << row << std::endl;
 
 		OrdVals ordvals;
 		unsigned colcounter(0);
 		for(Indices::const_iterator col(colinds.begin()); col!=colinds.end(); ++col){
 			t_float val(matrix[row][*col]);
-            //std::cout << '\t' << *col << " " << val << std::endl;
+			//std::cout << '\t' << *col << " " << val << std::endl;
 			OrdVal ov;
 			ov.val = val;
 			// don't store *col here, store the original order in which the sampled columns were added
@@ -129,23 +169,23 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 			ordvals.push_back(ov);
 			++colcounter;
 		}
-        //std::cout << std::endl;
+		//std::cout << std::endl;
 		std::sort(ordvals.begin(), ordvals.end(), sortbyval);
 
 		Indices rankorder;
 		for(size_t i(0); i<ordvals.size(); ++i) rankorder.push_back(ordvals[i].orig_ind);
 
-        //for(size_t i(0); i<ordvals.size(); ++i) std::cout << '\t' << i << " " << ordvals[i].val << " " << ordvals[i].orig_ind << std::endl;
+		//for(size_t i(0); i<ordvals.size(); ++i) std::cout << '\t' << i << " " << ordvals[i].val << " " << ordvals[i].orig_ind << std::endl;
 
 		// compute ranks in ascending order (nan's last)
 		Values rowranks(ncol,NANVALUE);
 		Ties ties;
 		t_float last(0);
-        unsigned naiverank(0);
+		unsigned naiverank(0);
 		for(size_t i(0); i<ncol; ++i){
-            t_float val(ordvals[i].val);
+			t_float val(ordvals[i].val);
 			if(fc_isnan(val)){
-                // sort function ensures nan values are at the end, so these can just pass through
+				// sort function ensures nan values are at the end, so these can just pass through
 				rowranks[i] = val;
 				continue;
 			}
@@ -178,8 +218,8 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 		ranks[row].resize(rankorder.size());
 		for(size_t i(0); i<rankorder.size(); ++i) ranks[row][rankorder[i]] = rowranks[i];
 
-        //std::cout << "Ranks:";
-        //for(size_t i(0); i<ranks[row].size(); ++i) std::cout << '\t' << i << " " << ranks[row][i] << std::endl;
+		//std::cout << "Ranks:";
+		//for(size_t i(0); i<ranks[row].size(); ++i) std::cout << '\t' << i << " " << ranks[row][i] << std::endl;
 	}
 
 	// pairwise pearson correlations of the pre-computed spearman ranks
@@ -477,11 +517,11 @@ void run_fastcluster(HclustResult & hclust_result, t_float * dist, int method, b
 	else
 		generate_R_dendrogram<false>(&merge[0], &hclust_result.height[0], &hclust_result.order[0], hc, N);
 
-    // methods 4, 5, and 6 (Euclidean methods) expect squared distances, and then the R heights must be square rooted to reflect methods accurate to Ward's original method
-    if(sqrt_heights){
-        for(Values::iterator it(hclust_result.height.begin()); it!=hclust_result.height.end(); ++it)
-            *it = sqrt(*it);
-    }
+	// methods 4, 5, and 6 (Euclidean methods) expect squared distances, and then the R heights must be square rooted to reflect methods accurate to Ward's original method
+	if(sqrt_heights){
+		for(Values::iterator it(hclust_result.height.begin()); it!=hclust_result.height.end(); ++it)
+			*it = sqrt(*it);
+	}
 
 	// convert merge (flat array) into two-column Merge matrix for later convenience/intelligibility
 	hclust_result.merge.resize(N-1);
@@ -503,27 +543,40 @@ void get_distances(
                    ){
 	if(method=="pearson") pearson_distances(matrix, colinds, dist);
 	else if(method=="spearman") spearman_distances(matrix, colinds, dist);
+	else if(method=="euclidean"){
+		euclidean_D2(matrix, colinds, dist);
+		if(!square_distances){
+			const std::ptrdiff_t NN = static_cast<std::ptrdiff_t>((matrix.size())*(matrix.size()-1)/2);
+			for(std::ptrdiff_t p(0); p<NN; ++p) dist[p] = sqrt(dist[p]);
+		}
+	}
 	else{
 		std::cerr << "ERROR: Unsupported distance metric " << method << std::endl;
 		exit(EXIT_FAILURE);
 	}
 
-    if(square_distances){
-        const std::ptrdiff_t NN = static_cast<std::ptrdiff_t>((matrix.size())*(matrix.size()-1)/2);
-        for(std::ptrdiff_t p(0); p<NN; ++p) dist[p] *= dist[p];
-    }
+	if(square_distances && method != "euclidean"){
+		const std::ptrdiff_t NN = static_cast<std::ptrdiff_t>((matrix.size())*(matrix.size()-1)/2);
+		for(std::ptrdiff_t p(0); p<NN; ++p) dist[p] *= dist[p];
+	}
+
+    /*
+	const std::ptrdiff_t NN = static_cast<std::ptrdiff_t>((matrix.size())*(matrix.size()-1)/2);
+	for(std::ptrdiff_t p(0); p<NN; ++p){
+		if(fc_isnan(dist[p])) std::cout << "nan at p " << p << std::endl;
+	}*/
 }
 
 std::string method_str(int method){
-    std::string str("unknown");
-    if(method==0) return "single";
-    if(method==1) return "complete";
-    if(method==2) return "average";
-    if(method==3) return "weighted";
-    if(method==4) return "ward";
-    if(method==5) return "centroid";
-    if(method==6) return "median";
-    return str;
+	std::string str("unknown");
+	if(method==0) return "single";
+	if(method==1) return "complete";
+	if(method==2) return "average";
+	if(method==3) return "weighted";
+	if(method==4) return "ward";
+	if(method==5) return "centroid";
+	if(method==6) return "median";
+	return str;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -532,7 +585,7 @@ void usage_error(){
 	<< " -r [file]            : matrix of values to cluster, first row is ignored, first column is item labels\n"
 	<< " -b #                 : number of bootstraps\n"
 	<< " -m [hclust method]   : clustering method (0. single, 1. complete, 2. average, 3. weighted, 4. ward, 5. centroid, 6. median)\n"
-    << " -D2                  : flag: square distances? Default is false, but expected by Ward, centroid and median methods in current version (1.1.13) of fastcluster.\n"
+	<< " -D2                  : flag: square distances? Default is false, but expected by Ward, centroid and median methods in current version (1.1.13) of fastcluster.\n"
 	<< " -d [distance metric] : distance metric (supported: pearson or spearman)\n"
 	<< " -v #                 : verbosity (1 or 2)\n"
 	<< "example: [executable] -r ratios.tab\n"
@@ -550,7 +603,7 @@ int main(int argc, char *argv[]) {
 	std::string ratiosfilename, distmethod;
 	unsigned bootstraps(0), verbosity(1);
 	int method(2); // average
-    bool square_distances(false);
+	bool square_distances(false);
 	t_float scale(1.0); // ratio of columns to resample for multiscale bootstrapping
 
 	if (argc < 2) usage_error();
@@ -582,7 +635,7 @@ int main(int argc, char *argv[]) {
 
 		} else if (arg == "-D2") {
 			square_distances = true;
-            std::cout << "-D2 flag: distances will be squared and heights will be square rooted" << std::endl;
+			std::cout << "-D2 flag: distances will be squared and heights will be square rooted" << std::endl;
 
 		} else if (arg == "-v") {
 			if (++i >= argc) usage_error();
@@ -591,9 +644,9 @@ int main(int argc, char *argv[]) {
 		} else if (arg == "-h" || arg == "--help") usage_error();
 	}
 
-    if(method<4 && square_distances) std::cout << "-D2 flag is set to true but distance method is not expecting squared distances. Recommend restarting without the -D2 flag" << std::endl;
+	if(method<4 && square_distances) std::cout << "-D2 flag is set to true but distance method is not expecting squared distances." << std::endl;
 
-    if(method>3 && !square_distances) std::cout << "Squared distances are expected for this method but -D2 flag is missing: recommend restarting with the -D2 flag" << std::endl;
+	if(method>3 && !square_distances) std::cout << "Squared distances are expected for this method, but -D2 flag is missing: not using squared distances" << std::endl;
 
 	// read in matrix
 	Matrix rr;
@@ -628,7 +681,7 @@ int main(int argc, char *argv[]) {
 	// store labels
 	for(size_t i(0); i<labels.size(); ++i) result.labels.push_back(labels[i]);
 
-    std::cout << "Fastcluster with method " << method << " (" << method_str(method) << ")" << std::endl;
+	std::cout << "Fastcluster with method " << method << " (" << method_str(method) << ")" << std::endl;
 	run_fastcluster(result, dist, method, square_distances);
 
 	// output result
@@ -640,7 +693,7 @@ int main(int argc, char *argv[]) {
 
 	std::cout << "Bootstrap iterations..." << std::endl;
 	unsigned nsample((unsigned)round(ncol*scale));
-	for(unsigned bs(0); bs<bootstraps; ++bs){
+	for(unsigned bs(1); bs<=bootstraps; ++bs){
 		if(verbosity>1) std::cout << "Bootstrap iteration " << bs << std::endl;
 
 		HclustResult bs_result;
@@ -664,13 +717,13 @@ int main(int argc, char *argv[]) {
 		auto_array_ptr<t_float> dist_resampled;
 		dist_resampled.init(NN);
 
-        if(verbosity>1) std::cout << "Distance matrix..." << std::endl;
+		if(verbosity>1) std::cout << "Distance matrix..." << std::endl;
 		get_distances(rr, colinds, dist_resampled, distmethod, square_distances);
 
-        if(verbosity>1) std::cout << "Fastcluster..." << std::endl;
+		if(verbosity>1) std::cout << "Fastcluster..." << std::endl;
 		run_fastcluster(bs_result, dist_resampled, method, square_distances);
 
-        dist_resampled.free();
+		dist_resampled.free();
 
 		//bootstrap_results.push_back(bs_result);
 

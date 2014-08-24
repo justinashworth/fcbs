@@ -8,24 +8,33 @@ source('~/xcode/fcbs/fcbs/hclust.from.fcbs.R')
 #pvrect(pvc)
 #pvrect(pvc,lty=2,alpha=0.9)
 #dev.off()
+#save(pvc,file='pvc.RData')
 
-pvclust_from_cpp = function(hcfile,countsfiles,nboot){
+pvclust_from_cpp = function(hcfile,countfiles=NULL){
 	require(pvclust)
 	hc = hc_from_fcbs(hcfile)
-	countsfiles = readLines(countsfiles)
-	rs = as.numeric( gsub('/.*','',countsfiles) )
-	counts = do.call(cbind, lapply(countsfiles,function(x){as.integer(readLines(x))}))
+	if(is.null(countfiles)) countfiles = dir('.','curr',recursive=T)
+#	countfiles = readLines(countfiles)
+	rs = gsub('/.*','',countfiles)
+	counts = do.call(cbind, lapply(countfiles,function(x){as.integer(readLines(x))}))
 
+	# fcbs writes of the number of interations it actually finished (reading this is especially useful for incomplete numbers of iterations)
+#	iters = lapply(rs, function(x){as.integer(readLines(sprintf('%s/lastiter',x))[1])})
+	iters = lapply(rs, function(x){as.integer(readLines(sprintf('%s/lastiter',x))[1])+1})
+
+	rs = as.numeric(rs)
 	mboot = list()
 	for(i in 1:ncol(counts)){
-		mboot[[i]] = list(edges.cnt=counts[,i], nboot=nboot, r=rs[i])
+		mboot[[i]] = list(edges.cnt=counts[,i], nboot=iters[[i]], r=rs[i])
+	}
+
+	for(mb in mboot){
+		cat(mb$r,mb$iters,'\n')
 	}
 
 	# requires modified version of pvclust to expose merge function (and in the case of big trees to avoid some unnecessarily slow bottlenecks in the code)
 	pvclust.merge(data=NULL, object.hclust=hc, mboot=mboot)
 }
-
-save(pvc,file='pvc.RData')
 
 # plot a subdendrogram (instead of the whole tree) with pvclust bootstrap p-values at the tree nodes
 # work in progress
