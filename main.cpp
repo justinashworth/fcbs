@@ -79,47 +79,97 @@ void euclidean_D2(Matrix const & matrix, Indices const & colinds, t_float * cons
 
 }
 
-// colinds allows efficient computing of pearson over arbitrary combinations of columns (useful for bootstrapping)
-void pearson_distances(Matrix const & matrix, Indices const & colinds, t_float * const dist, bool pairwise_complete_obs=true){
-	// pairwise pearson correlations
-	size_t const nrow(matrix.size()), ncol(colinds.size());
-	size_t r1(0), r2(0), i(0);
+// scaling version: for missing values, scale the resulting correlation such that the maximum correlation is equal to (number of non-NA pairs) / max(# non-NA x, # non-NA y)
+double pearson_correlation_scale(
+    Values const & v1,
+    Values const & v2,
+    Indices const & colinds,
+    bool scale=true
+){
+    t_float EX(0.0), EY(0.0), EXX(0.0), EYY(0.0), EXY(0.0), x(0.0), y(0.0), d(0.0), denom(0.0), npairs(0.0), nx(0.0), ny(0.0);
+    for(size_t i(0); i<colinds.size(); ++i){
+        x = v1[colinds[i]];
+        y = v2[colinds[i]];
+        if(!fc_isnan(x)) nx += 1;
+        if(!fc_isnan(y)) ny += 1;
+        if(fc_isnan(x) || fc_isnan(y)) continue;
+        npairs += 1;
+        EX += x;
+        EY += y;
+        EXX += x*x;
+        EYY += y*y;
+        EXY += x*y;
+    }
+
+    d = 2.0;
+    if(npairs>0){
+        denom = (EXX - EX*EX/npairs)*(EYY - EY*EY/npairs);
+        if(denom>0) d = (EXY - EX*EY/npairs) / sqrt(denom);
+        // scale correlation by number of missing values such that max absolute value is equal to (number of non-NA pairs) / max(# non-NA x, # non-NA y)
+        // for rows with many NA's, this downweights their correlations with more complete rows, without downweighting correlations between rows with similar numbers of NA's. Should effectively keep sparse rows from falsely clustering and also segregate them into their own clusters of similarity
+        if(scale) d *= npairs / std::max(nx,ny);
+    }
+
+    //std::cerr << 1.0 - d << std::endl;
+    if(fc_isnan(d)){
+        t_float num(EXY - EX*EY/npairs);
+        std::cerr << "nan distance value EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
+        std::cerr << "colinds:";
+        for(size_t i(0); i<colinds.size(); ++i) std::cerr << " " << colinds[i];
+        std::cerr << std::endl;
+    }
+
+    return d;
+}
+
+// skipping version: missing values are not counted and 'N' is always the total number of possible pairs
+double pearson_correlation_skip(
+                                 Values const & v1,
+                                 Values const & v2,
+                                 Indices const & colinds
+                                 ){
+    t_float EX(0.0), EY(0.0), EXX(0.0), EYY(0.0), EXY(0.0);
+    t_float x(0.0), y(0.0), d(0.0), denom(0.0), npairs(0.0), ncol(colinds.size());
+    for(size_t i(0); i<colinds.size(); ++i){
+        x = v1[colinds[i]];
+        y = v2[colinds[i]];
+        if(fc_isnan(x) || fc_isnan(y)) continue;
+        npairs += 1;
+        EX += x;
+        EY += y;
+        EXX += x*x;
+        EYY += y*y;
+        EXY += x*y;
+    }
+
+    d = 2.0;
+    if(npairs>0){
+        denom = (EXX - EX*EX/ncol)*(EYY - EY*EY/ncol);
+        if(denom>0) d = (EXY - EX*EY/ncol) / sqrt(denom);
+    }
+
+    //std::cerr << 1.0 - d << std::endl;
+    if(fc_isnan(d)){
+        t_float num(EXY - EX*EY/npairs);
+        std::cerr << "nan distance value EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
+        std::cerr << "colinds:";
+        for(size_t i(0); i<colinds.size(); ++i) std::cerr << " " << colinds[i];
+        std::cerr << std::endl;
+    }
+    
+    return d;
+}
+
+void pearson_distances(Matrix const & matrix, Indices const & colinds, t_float * const dist, std::string method="pearson1"){
+	size_t const nrow(matrix.size());
 	std::ptrdiff_t p(0);
-	t_float EX(0.0), EY(0.0), EXX(0.0), EYY(0.0), EXY(0.0), x(0.0), y(0.0), d(0.0), denom(0.0);
-	unsigned npairs(0);
-	for(r1=0; r1<(nrow-1); ++r1){
-		for(r2=r1+1; r2<nrow; ++r2){
-			EX=0, EY=0, EXX=0, EYY=0, EXY=0;
-			npairs=0;
-			for(i=0; i<ncol; ++i){
-				x = matrix[r1][colinds[i]];
-				y = matrix[r2][colinds[i]];
-				if(pairwise_complete_obs && (fc_isnan(x) || fc_isnan(y))) continue;
-				++npairs;
-				EX += x;
-				EY += y;
-				EXX += x*x;
-				EYY += y*y;
-				EXY += x*y;
-			}
+	for(size_t r1(0); r1<(nrow-1); ++r1){
+		for(size_t r2(r1+1); r2<nrow; ++r2){
+            if(method=="pearson" || method=="pearson1")
+                dist[p++] = 1.0 - pearson_correlation_scale(matrix[r1], matrix[r2], colinds);
+            else // method=="pearson2"
+                dist[p++] = 1.0 - pearson_correlation_skip(matrix[r1], matrix[r2], colinds);
 
-			d = 2.0;
-			if(npairs>0){
-				// nan values can appear during bootstrap resampling, due to repeated values and a zero denominator
-				//d = 1.0 - (EXY - EX*EY/npairs) / sqrt( (EXX - EX*EX/npairs)*(EYY - EY*EY/npairs) );
-				denom = (EXX - EX*EX/npairs)*(EYY - EY*EY/npairs);
-				if(denom>0) d = 1.0 - (EXY - EX*EY/npairs) / sqrt(denom);
-			}
-
-			//std::cerr << d << std::endl;
-			if(fc_isnan(d)){
-				t_float num(EXY - EX*EY/npairs);
-				std::cerr << "nan distance value for r1 " << r1 << " r2 " << r2 << " EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
-				std::cerr << "colinds:";
-				for(i=0; i<ncol; ++i) std::cerr << " " << colinds[i];
-				std::cerr << std::endl;
-			}
-			dist[p++] = d;
 		}
 	}
 }
@@ -541,7 +591,9 @@ void get_distances(
                    std::string method="pearson",
                    bool square_distances=false
                    ){
-	if(method=="pearson") pearson_distances(matrix, colinds, dist);
+	if(method=="pearson" || method=="pearson1" || method=="pearson2")
+        pearson_distances(matrix, colinds, dist, method);
+    else if(method=="pearson2") pearson_distances(matrix, colinds, dist);
 	else if(method=="spearman") spearman_distances(matrix, colinds, dist);
 	else if(method=="euclidean"){
 		euclidean_D2(matrix, colinds, dist);
@@ -664,6 +716,35 @@ int main(int argc, char *argv[]) {
 	// dinstance func expects column indices, here just feed 1:ncol (becomes useful for bootstrap resampling)
 	Indices colinds;
 	for(size_t i(0); i<rr.front().size(); ++i) colinds.push_back(i);
+
+    /*// spot-check distances for genes of interest
+    Labels gg;
+    gg.push_back("\"233\"");
+    gg.push_back("\"39799\"");
+    for(Labels::const_iterator it(gg.begin()); it!=gg.end(); ++it){
+        std::cout << *it;
+
+        size_t ind(0);
+        bool found(false);
+        for(size_t r1(0); r1<labels.size(); ++r1){
+            if(labels[r1] == *it){
+                ind=r1;
+                found=true;
+                std::cout << " ind " << ind << std::endl;
+            }
+        }
+        if(!found){
+            std::cout << " not found!" << std::endl;
+            continue;
+        }
+        std::ofstream of;
+        std::string fname("cors." + *it);
+        of.open(fname.c_str());
+        for(size_t r2(0); r2<rr.size(); ++r2){
+            of << labels[r2] << " "<< 1.0 - pearson_correlation_scale(rr[ind], rr[r2], colinds) << std::endl;
+        }
+        of.close();
+    }*/
 
 	// Parameter NN: number of non-redundant, non-self comparisons
 	const std::ptrdiff_t NN = static_cast<std::ptrdiff_t>((nrow)*(nrow-1)/2);
