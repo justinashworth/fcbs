@@ -156,7 +156,7 @@ double pearson_correlation_skip(
         for(size_t i(0); i<colinds.size(); ++i) std::cerr << " " << colinds[i];
         std::cerr << std::endl;
     }
-    
+
     return d;
 }
 
@@ -634,7 +634,7 @@ std::string method_str(int method){
 ////////////////////////////////////////////////////////////////////////////////
 void usage_error(){
 	std::cerr << "\n"
-	<< " -r [file]            : matrix of values to cluster, first row is ignored, first column is item labels\n"
+	<< " -r [file]            : matrix of values to cluster, single-space-delimited, first row is ignored, first column is labels\n"
 	<< " -b #                 : number of bootstraps\n"
 	<< " -m [hclust method]   : clustering method (0. single, 1. complete, 2. average, 3. weighted, 4. ward, 5. centroid, 6. median)\n"
 	<< " -D2                  : flag: square distances? Default is false, but expected by Ward, centroid and median methods in current version (1.1.13) of fastcluster.\n"
