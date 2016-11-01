@@ -638,7 +638,7 @@ void usage_error(){
 	<< " -b #                 : number of bootstraps\n"
 	<< " -m [hclust method]   : clustering method (0. single, 1. complete, 2. average, 3. weighted, 4. ward, 5. centroid, 6. median)\n"
 	<< " -D2                  : flag: square distances? Default is false, but expected by Ward, centroid and median methods in current version (1.1.13) of fastcluster.\n"
-	<< " -d [distance metric] : distance metric (supported: pearson or spearman)\n"
+	<< " -d [distance metric] : distance metric (supported: euclidean, pearson or spearman)\n"
 	<< " -v #                 : verbosity (1 or 2)\n"
 	<< "example: [executable] -r ratios.tab\n"
 	<< "\n";
