@@ -1,10 +1,10 @@
-get_hpk = function(hc){
+get_hpk = function(hc,lowomit=0.8){
 	if(!exists('hpk')){
 		library(dendextendRcpp,quietly=T)
 		# (to do: can probably re-implement the height-based tree cutting in c++ for bootstrapping/empirical distributions,
 		# and/or adapt code from source of dendextendRcpp's Rcpp_cut_lower function)
 		cat('Heights per k...\n')
-		hpk = dendextendRcpp_heights_per_k.dendrogram(as.dendrogram(hc))
+		hpk = dendextendRcpp_heights_per_k.dendrogram(as.dendrogram(hc),lowomit)
 		save(hpk,file='hpk.RData')
 	}
 	hpk
