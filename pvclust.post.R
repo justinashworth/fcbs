@@ -48,7 +48,7 @@ plots = T
 if(plots){
 
 if(!exists('hpk')){
-	hpk=get_hpk(hc)
+	hpk=get_hpk(hc,0.8)
 	save(hpk,file='hpk.RData')
 }
 
