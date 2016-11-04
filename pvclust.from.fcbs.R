@@ -1,4 +1,4 @@
-#source('hclust.from.fcbs.R')
+source('hclust.from.fcbs.R')
 
 # example usage
 #system('ls */nodecounts > countfiles')

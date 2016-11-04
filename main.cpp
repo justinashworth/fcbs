@@ -335,7 +335,7 @@ void read_matrix_file(
 		// skip the first line, which should be a header
 		if(firstline){ firstline=false; continue; }
 		std::istringstream linestream(line);
-		Values ratios;
+		Values values;
 		std::string token;
 		bool id(true);
 		while(getline(linestream, token, ' ')){
@@ -350,10 +350,10 @@ void read_matrix_file(
 			t_float value;
 			if(token=="NA") value=NANVALUE;
 			else value=std::atof(token.c_str());
-			ratios.push_back(value);
+			values.push_back(value);
 		}
 
-		rr.push_back(ratios);
+		rr.push_back(values);
 	}
 }
 
@@ -634,13 +634,13 @@ std::string method_str(int method){
 ////////////////////////////////////////////////////////////////////////////////
 void usage_error(){
 	std::cerr << "\n"
-	<< " -r [file]            : matrix of values to cluster, single-space-delimited, first row is ignored, first column is labels\n"
 	<< " -b #                 : number of bootstraps\n"
+	<< " -s #                 : ratio of columns to resample (default 1: for multiscale bootstrapping)\n"
 	<< " -m [hclust method]   : clustering method (0. single, 1. complete, 2. average, 3. weighted, 4. ward, 5. centroid, 6. median)\n"
-	<< " -D2                  : flag: square distances? Default is false, but expected by Ward, centroid and median methods in current version (1.1.13) of fastcluster.\n"
 	<< " -d [distance metric] : distance metric (supported: euclidean, pearson or spearman)\n"
 	<< " -v #                 : verbosity (1 or 2)\n"
-	<< "example: [executable] -r ratios.tab\n"
+	<< " [file]            : matrix of values to cluster, single-space-delimited, first row is ignored, first column is labels\n"
+	<< "example: [executable] -b 0 -m 4 -d pearson [file]\n"
 	<< "\n";
 	exit(EXIT_FAILURE);
 }
@@ -652,10 +652,10 @@ int main(int argc, char *argv[]) {
 
 	std::cout << std::endl;
 
-	std::string ratiosfilename, distmethod;
+	std::string datafilename, distmethod("euclidean");
 	unsigned bootstraps(0), verbosity(1);
-	int method(2); // average
-	bool square_distances(false);
+	int method(2); // average by default
+	bool square_distances_as_expected(true), square_distances(false);
 	t_float scale(1.0); // ratio of columns to resample for multiscale bootstrapping
 
 	if (argc < 2) usage_error();
@@ -665,11 +665,7 @@ int main(int argc, char *argv[]) {
 
 		std::string arg(argv[i]);
 
-		if (arg == "-r") {
-			if (++i >= argc) usage_error();
-			ratiosfilename = argv[i];
-
-		} else if (arg == "-b") {
+		if (arg == "-b") {
 			if (++i >= argc) usage_error();
 			bootstraps = atoi(argv[i]);
 
@@ -685,9 +681,8 @@ int main(int argc, char *argv[]) {
 			if (++i >= argc) usage_error();
 			distmethod = argv[i];
 
-		} else if (arg == "-D2") {
-			square_distances = true;
-			std::cout << "-D2 flag: distances will be squared and heights will be square rooted" << std::endl;
+		} else if (arg == "-noD2") {
+			square_distances_as_expected = false;
 
 		} else if (arg == "-v") {
 			if (++i >= argc) usage_error();
@@ -696,14 +691,17 @@ int main(int argc, char *argv[]) {
 		} else if (arg == "-h" || arg == "--help") usage_error();
 	}
 
-	if(method<4 && square_distances) std::cout << "-D2 flag is set to true but distance method is not expecting squared distances." << std::endl;
+	// square distances? expected by Ward, centroid and median methods in current version (1.1.13) of fastcluster.\n"
 
-	if(method>3 && !square_distances) std::cout << "Squared distances are expected for this method, but -D2 flag is missing: not using squared distances" << std::endl;
+
+	datafilename = argv[argc-1];
+
+	if(method>3 && square_distances_as_expected) square_distances = true;
 
 	// read in matrix
 	Matrix rr;
 	Labels labels;
-	read_matrix_file(ratiosfilename, rr, labels);
+	read_matrix_file(datafilename, rr, labels);
 
 	if(verbosity>2){
 		size_t ntest(std::min(size_t(5),rr.size()));
