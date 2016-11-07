@@ -20,7 +20,7 @@ for(f in cache){
 	}
 }
 
-do_pvclust = F
+do_pvclust = T
 
 if(do_pvclust){
 if(!exists('pvc')){
@@ -54,7 +54,7 @@ if(!exists('hpk')){
 
 if(!exists('cls')){
 library(dendextendRcpp)
-ncl=200
+ncl=400
 if(!ncl %in% names(hpk)){
 	ncls = as.numeric(names(hpk))
 	ncl = ncls[ ncls>ncl ][1]
@@ -77,6 +77,7 @@ if(plot_dends){
 	maxdend = 2000
 	denddir = 'dendro'
 	dir.create(denddir)
+	expylab = "log2 change from mean"
 	expdir = 'exp'
 	dir.create(expdir)
 	# requires modified version of pvclust to expose functions and work properly with externally produced bootstraps
@@ -131,8 +132,11 @@ if(plot_dends){
 
 		# plot expression lineplot
 		pdf(sprintf('%s/exp.%04d.pdf',expdir,i),height=8,width=10)
+		par(mar=c(3,4,5,3))
 		main = sprintf('Cluster %i: expression values',i)
-		matplot( t(dd[ids,]), type='l', lty=1, lwd=2)
+		matplot( t(dd[ids,]), type='n', xaxt='n', ylab=expylab, xaxs='i')
+		matlines( t(dd[ids,]), lty=1, lwd=2)
+		axis(3,las=2,at=1:ncol(dd),labels=colnames(dd))
 		dev.off()
 
 	}
