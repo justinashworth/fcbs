@@ -54,7 +54,7 @@ if(!exists('hpk')){
 
 if(!exists('cls')){
 library(dendextendRcpp)
-ncl=4000
+ncl=1000
 if(!ncl %in% names(hpk)){
 	ncls = as.numeric(names(hpk))
 	ncl = ncls[ ncls>ncl ][1]
@@ -64,12 +64,34 @@ cls = dendextendRcpp::Rcpp_cut_lower(as.dendrogram(hc),height=hpk[[as.character(
 save(cls,file='cls.RData')
 }
 
+pvc_exp_plot = function(expdata, pvcl, desc=NULL){
+	# plot expression lineplot
+	dir.create('pvc',recursive=T)
+	pdf(sprintf('pvc/exp.%04d.pdf',pvcl),height=8,width=10,colormodel='cmyk')
+	par(mar=c(5,4,6,3))
+	main = sprintf('Bootstrap Cluster %i',pvcl)
+	expylab = "expression measure"
+	ids = clpick$clusters[[pvcl]]
+#	cols = rainbow(length(ids), start=0.3, end=0.1)
+	cols = rainbow(length(ids))
+	matplot( t(expdata[ids,]), type='n', xaxt='n', ylab=expylab, xaxs='i', main=main)
+	matlines( t(expdata[ids,]), lty=1, lwd=2,col=cols)
+	axis(3,las=2,at=1:ncol(expdata),labels=colnames(expdata))
+	axis(1,las=2,at=1:ncol(expdata),labels=colnames(expdata))
+	if(!is.null(desc)){
+		for(i in 1:length(ids)){
+			mtext(ids[i], line=-1*i, col=cols[i])
+		}
+	}
+	dev.off()
+}
+
 plot_dends=T
 if(plot_dends){
 	#qs = readLines('qs')
 	qs =c()
 	desctab = read.delim('desc')
-	desc = as.character(desctab$desc)
+	desc = paste(desctab$id,desctab$desc)
 	names(desc) = as.character(desctab$id)
 
 	library(fastcluster)
@@ -131,16 +153,21 @@ if(plot_dends){
 		dev.off()
 
 		# plot expression lineplot
-		pdf(sprintf('%s/exp.%04d.pdf',expdir,i),height=8,width=10)
+		pdf(sprintf('%s/exp.%04d.pdf',expdir,i),height=8,width=10,colormodel='cmyk')
 		par(mar=c(5,4,6,3))
 		main = sprintf('Cluster %i: expression values',i)
-		main = ''
+#		main = ''
+		cols = rainbow(length(ids))
 		matplot( t(dd[ids,]), type='n', xaxt='n', ylab=expylab, xaxs='i', main=main)
-		matlines( t(dd[ids,]), lty=1, lwd=2)
+		matlines( t(dd[ids,]), lty=1, lwd=2, col=cols)
 		axis(3,las=2,at=1:ncol(dd),labels=colnames(dd))
 		axis(1,las=2,at=1:ncol(dd),labels=colnames(dd))
+		if(!is.null(desc)){
+			for(i in 1:length(ids)){
+				mtext(ids[i], line=-1*i, col=cols[i])
+			}
+		}
 		dev.off()
-
 	}
 }
 
