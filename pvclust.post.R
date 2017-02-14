@@ -75,19 +75,19 @@ pvc_exp_plot = function(expdata, pvcl, desc=NULL){
 	ids = clpick$clusters[[pvcl]]
 #	cols = rainbow(length(ids), start=0.3, end=0.1)
 	cols = rainbow(length(ids))
-	ylim=range(as.matrix(expdata[ids,]))
-	if(all(ylim==0)){
-		cat('all-zero cluster...\n')
-		ylim=c(0.1,1)
-	}
-	matplot( t(expdata[ids,]), type='n', xaxt='n', yaxt='n', ylab=expylab, xaxs='i', main=main, xlab=xlab, log='y',ylim=ylim)
-	matlines( t(expdata[ids,]), lty=1, lwd=2,col=cols)
-	axis(3,las=2,at=1:ncol(expdata),labels=colnames(expdata))
-	axis(1,las=2,at=1:ncol(expdata),labels=colnames(expdata))
-	ylv = c(0.1,1,10,100,1000,10000)
-	axis(2,at=ylv,labels=as.character(ylv))
-	for(i in 1:length(ids)){
-		mtext(ids[i], line=-1*i, col=cols[i])
+	yrange=range(as.matrix(expdata[ids,]))
+	if(all(yrange==0)){
+		cat('all-zero cluster...skipping\n')
+	} else {
+		matplot( t(expdata[ids,]), type='n', xaxt='n', yaxt='n', ylab=expylab, xaxs='i', main=main, xlab=xlab, log='y')
+		matlines( t(expdata[ids,]), lty=1, lwd=2,col=cols)
+#		axis(3,las=2,at=1:ncol(expdata),labels=colnames(expdata))
+#		axis(1,las=2,at=1:ncol(expdata),labels=colnames(expdata))
+		ylv = c(0.01,0.1,1,10,100,1000,10000)
+		axis(2,at=ylv,labels=as.character(ylv))
+		for(i in 1:length(ids)){
+			mtext(ids[i], line=-1*i, col=cols[i])
+		}
 	}
 	dev.off()
 }
@@ -165,20 +165,20 @@ if(plot_dends){
 #		main = ''
 		cols = rainbow(length(ids))
 		xlab = "sample"
-		ylim=range(as.matrix(dd[ids,]))
-		if(all(ylim==0)){
+		yrange=range(as.matrix(dd[ids,]))
+		if(all(yrange==0)){
 			cat('all-zero cluster...\n')
-			ylim=c(0.1,1)
-		}
-		matplot( t(dd[ids,]), type='n', xaxt='n', ylab=expylab, xaxs='i', main=main, log='y', yaxt='n', xlab=xlab,ylim=ylim)
-		matlines( t(dd[ids,]), lty=1, lwd=2, col=cols)
-		axis(3,las=2,at=1:ncol(dd),labels=colnames(dd))
-		axis(1,las=2,at=1:ncol(dd),labels=colnames(dd))
-		ylv = c(0.1,1,10,100,1000,10000)
-		axis(2,at=ylv,labels=as.character(ylv))
-		if(!is.null(desc)){
-			for(i in 1:length(ids)){
-				mtext(ids[i], line=-1*i, col=cols[i])
+		} else {
+			matplot( t(dd[ids,]), type='n', xaxt='n', ylab=expylab, xaxs='i', main=main, log='y', yaxt='n', xlab=xlab)
+			matlines( t(dd[ids,]), lty=1, lwd=2, col=cols)
+#			axis(3,las=2,at=1:ncol(dd),labels=colnames(dd))
+#			axis(1,las=2,at=1:ncol(dd),labels=colnames(dd))
+			ylv = c(0.01,0.1,1,10,100,1000,10000)
+			axis(2,at=ylv,labels=as.character(ylv))
+			if(!is.null(desc)){
+				for(i in 1:length(ids)){
+					mtext(ids[i], line=-1*i, col=cols[i])
+				}
 			}
 		}
 		dev.off()
