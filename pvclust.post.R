@@ -32,7 +32,7 @@ hc = pvc$hclust
 
 if(!exists('clusters')){
 	pt='au'
-	pvcut=0.90
+	pvcut=0.80
 	cat(sprintf('pvpick with P[%s]>=%f\n',pt,pvcut))
 	clpick = pvpick(pvc,pv=pt,alpha=pvcut,max.only=T)
 	save(clpick,file='pvpick.RData')
@@ -54,7 +54,7 @@ if(!exists('hpk')){
 
 if(!exists('cls')){
 library(dendextendRcpp)
-ncl=1000
+ncl=500
 if(!ncl %in% names(hpk)){
 	ncls = as.numeric(names(hpk))
 	ncl = ncls[ ncls>ncl ][1]
@@ -68,28 +68,34 @@ pvc_exp_plot = function(expdata, pvcl, desc=NULL){
 	# plot expression lineplot
 	dir.create('pvc',recursive=T)
 	pdf(sprintf('pvc/exp.%04d.pdf',pvcl),height=8,width=10,colormodel='cmyk')
-	par(mar=c(5,4,6,3))
+	par(mar=c(6,4,6,3))
 	main = sprintf('Bootstrap Cluster %i',pvcl)
-	expylab = "expression measure"
+	xlab = "sample"
+	expylab = "transcript expression (CPM)"
 	ids = clpick$clusters[[pvcl]]
 #	cols = rainbow(length(ids), start=0.3, end=0.1)
 	cols = rainbow(length(ids))
-	matplot( t(expdata[ids,]), type='n', xaxt='n', ylab=expylab, xaxs='i', main=main)
+	ylim=range(as.matrix(expdata[ids,]))
+	if(all(ylim==0)){
+		cat('all-zero cluster...\n')
+		ylim=c(0.1,1)
+	}
+	matplot( t(expdata[ids,]), type='n', xaxt='n', yaxt='n', ylab=expylab, xaxs='i', main=main, xlab=xlab, log='y',ylim=ylim)
 	matlines( t(expdata[ids,]), lty=1, lwd=2,col=cols)
 	axis(3,las=2,at=1:ncol(expdata),labels=colnames(expdata))
 	axis(1,las=2,at=1:ncol(expdata),labels=colnames(expdata))
-	if(!is.null(desc)){
-		for(i in 1:length(ids)){
-			mtext(ids[i], line=-1*i, col=cols[i])
-		}
+	ylv = c(0.1,1,10,100,1000,10000)
+	axis(2,at=ylv,labels=as.character(ylv))
+	for(i in 1:length(ids)){
+		mtext(ids[i], line=-1*i, col=cols[i])
 	}
 	dev.off()
 }
 
 plot_dends=T
 if(plot_dends){
-	#qs = readLines('qs')
-	qs =c()
+	qs = readLines('qs')
+#	qs =c()
 	desctab = read.delim('desc')
 	desc = paste(desctab$id,desctab$desc)
 	names(desc) = as.character(desctab$id)
@@ -99,7 +105,7 @@ if(plot_dends){
 	maxdend = 2000
 	denddir = 'dendro'
 	dir.create(denddir)
-	expylab = "expression measure"
+	expylab = "transcript expression (CPM)"
 	expdir = 'exp'
 	dir.create(expdir)
 	# requires modified version of pvclust to expose functions and work properly with externally produced bootstraps
@@ -147,27 +153,41 @@ if(plot_dends){
 #			next
 #		}
 #		png(fname,height=max(baseh*0.8,sz*15),width=baseh)
-		pdf(sprintf('%s/pvdend.%04d.pdf',denddir,i),height=max(4,length(ids)/4),width=10)
+		pdf(sprintf('%s/pvdend.%04d.pdf',denddir,i),height=max(4,length(ids)/4),width=12)
 		main = sprintf('Cluster %i: dendrogram with pvclust AU p-values',i)
 		plot_pvdend(cls[[i]], ordlabs, axes, desc)
 		dev.off()
 
 		# plot expression lineplot
 		pdf(sprintf('%s/exp.%04d.pdf',expdir,i),height=8,width=10,colormodel='cmyk')
-		par(mar=c(5,4,6,3))
+		par(mar=c(6,4,6,3))
 		main = sprintf('Cluster %i: expression values',i)
 #		main = ''
 		cols = rainbow(length(ids))
-		matplot( t(dd[ids,]), type='n', xaxt='n', ylab=expylab, xaxs='i', main=main)
+		xlab = "sample"
+		ylim=range(as.matrix(dd[ids,]))
+		if(all(ylim==0)){
+			cat('all-zero cluster...\n')
+			ylim=c(0.1,1)
+		}
+		matplot( t(dd[ids,]), type='n', xaxt='n', ylab=expylab, xaxs='i', main=main, log='y', yaxt='n', xlab=xlab,ylim=ylim)
 		matlines( t(dd[ids,]), lty=1, lwd=2, col=cols)
 		axis(3,las=2,at=1:ncol(dd),labels=colnames(dd))
 		axis(1,las=2,at=1:ncol(dd),labels=colnames(dd))
+		ylv = c(0.1,1,10,100,1000,10000)
+		axis(2,at=ylv,labels=as.character(ylv))
 		if(!is.null(desc)){
 			for(i in 1:length(ids)){
 				mtext(ids[i], line=-1*i, col=cols[i])
 			}
 		}
 		dev.off()
+	}
+
+	# now pvclust pvpicked cluster expression plots
+	for(i in 1:length(clpick$clusters)){
+		cat( sprintf('pvc cluster %i\n',i) )
+		pvc_exp_plot(dd,i,desc)
 	}
 }
 
