@@ -113,6 +113,7 @@ if(plot_dends){
 	ordlabs = hc$labels[ hc$order ]
 
 	qsi = sapply(qs, function(x){ which(sapply(cls, function(y){x %in% labels(y)})) } )
+	pvi = sapply(qs, function(x){ which(sapply(clpick$clusters, function(y){x %in% y})) } )
 	for(qq in qs){
 		for(i in qsi[[qq]]){
 			cat('plots for',qq,'\n')
