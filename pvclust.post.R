@@ -75,7 +75,7 @@ pvc_exp_plot = function(expdata, pvcl, desc=NULL){
 	ids = clpick$clusters[[pvcl]]
 #	cols = rainbow(length(ids), start=0.3, end=0.1)
 	cols = rainbow(length(ids))
-	yrange=range(as.matrix(expdata[ids,]))
+	yrange=range(as.matrix(expdata[ids,]),na.rm=T)
 	if(all(yrange==0)){
 		cat('all-zero cluster...skipping\n')
 	} else {
@@ -166,7 +166,7 @@ if(plot_dends){
 #		main = ''
 		cols = rainbow(length(ids))
 		xlab = "sample"
-		yrange=range(as.matrix(dd[ids,]))
+		yrange=range(as.matrix(dd[ids,]),na.rm=T)
 		if(all(yrange==0)){
 			cat('all-zero cluster...\n')
 		} else {
