@@ -71,7 +71,7 @@ pvc_exp_plot = function(expdata, pvcl, desc=NULL){
 	par(mar=c(6,4,6,3))
 	main = sprintf('Bootstrap Cluster %i',pvcl)
 	xlab = "sample"
-	expylab = "transcript expression (CPM)"
+	expylab = "transcript expression"
 	ids = clpick$clusters[[pvcl]]
 #	cols = rainbow(length(ids), start=0.3, end=0.1)
 	cols = rainbow(length(ids))
@@ -94,8 +94,8 @@ pvc_exp_plot = function(expdata, pvcl, desc=NULL){
 
 plot_dends=T
 if(plot_dends){
-	qs = readLines('qs')
-#	qs =c()
+	qs =c()
+	if(file.exists('qs')) qs = readLines('qs')
 	desctab = read.delim('desc')
 	desc = paste(desctab$id,desctab$desc)
 	names(desc) = as.character(desctab$id)
@@ -105,7 +105,7 @@ if(plot_dends){
 	maxdend = 2000
 	denddir = 'dendro'
 	dir.create(denddir)
-	expylab = "transcript expression (CPM)"
+	expylab = "transcript expression"
 	expdir = 'exp'
 	dir.create(expdir)
 	# requires modified version of pvclust to expose functions and work properly with externally produced bootstraps
