@@ -591,6 +591,7 @@ void get_distances(
                    std::string method="pearson",
                    bool square_distances=false
                    ){
+	// note that for hierarchical clustering, 'any' distance metric can be used--with varying degrees of relevance or success
 	if(method=="pearson" || method=="pearson1" || method=="pearson2")
         pearson_distances(matrix, colinds, dist, method);
     else if(method=="pearson2") pearson_distances(matrix, colinds, dist);
@@ -765,6 +766,12 @@ int main(int argc, char *argv[]) {
 
 	// output result
 	output_hclust(result,"hc.");
+
+	// to do: cluster-level analysis with updated distances and a re-clustering
+	// e.g. MEME, Weeder, and/or a native, in-memory fast motif discovery routine
+	// second-pass (or n-pass) re-clustering with updated distance matrices for iterative hierarchical [sub]cluster refinement
+	// would need to work with hierarchical cluster structures, make cuts, etc here natively in c++ (tricky... learn from Rcpp libs?)
+	// some native c++ classes/routines for hclust structure
 
 	// bootstrap iterations
 	HclustResults bootstrap_results;
