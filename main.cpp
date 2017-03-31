@@ -81,83 +81,83 @@ void euclidean_D2(Matrix const & matrix, Indices const & colinds, t_float * cons
 
 // scaling version: for missing values, scale the resulting correlation such that the maximum correlation is equal to (number of non-NA pairs) / max(# non-NA x, # non-NA y)
 double pearson_correlation_scale(
-    Values const & v1,
-    Values const & v2,
-    Indices const & colinds,
-    bool scale=true
+		Values const & v1,
+		Values const & v2,
+		Indices const & colinds,
+		bool scale=true
 ){
-    t_float EX(0.0), EY(0.0), EXX(0.0), EYY(0.0), EXY(0.0), x(0.0), y(0.0), d(0.0), denom(0.0), npairs(0.0), nx(0.0), ny(0.0);
-    for(size_t i(0); i<colinds.size(); ++i){
-        x = v1[colinds[i]];
-        y = v2[colinds[i]];
-        if(!fc_isnan(x)) nx += 1;
-        if(!fc_isnan(y)) ny += 1;
-        if(fc_isnan(x) || fc_isnan(y)) continue;
-        npairs += 1;
-        EX += x;
-        EY += y;
-        EXX += x*x;
-        EYY += y*y;
-        EXY += x*y;
-    }
+		t_float EX(0.0), EY(0.0), EXX(0.0), EYY(0.0), EXY(0.0), x(0.0), y(0.0), cor(0.0), denom(0.0), npairs(0.0), nx(0.0), ny(0.0);
+		for(size_t i(0); i<colinds.size(); ++i){
+				x = v1[colinds[i]];
+				y = v2[colinds[i]];
+				if(!fc_isnan(x)) nx += 1;
+				if(!fc_isnan(y)) ny += 1;
+				if(fc_isnan(x) || fc_isnan(y)) continue;
+				npairs += 1;
+				EX += x;
+				EY += y;
+				EXX += x*x;
+				EYY += y*y;
+				EXY += x*y;
+		}
 
-    d = 2.0;
-    if(npairs>0){
-        denom = (EXX - EX*EX/npairs)*(EYY - EY*EY/npairs);
-        if(denom>0) d = (EXY - EX*EY/npairs) / sqrt(denom);
-        // scale correlation by number of missing values such that max absolute value is equal to (number of non-NA pairs) / max(# non-NA x, # non-NA y)
-        // for rows with many NA's, this downweights their correlations with more complete rows, without downweighting correlations between rows with similar numbers of NA's. Should effectively keep sparse rows from falsely clustering and also segregate them into their own clusters of similarity
-        if(scale) d *= npairs / std::max(nx,ny);
-    }
+		cor = 0;
+		if(npairs>0){
+				denom = (EXX - EX*EX/npairs)*(EYY - EY*EY/npairs);
+				if(denom>0) cor = (EXY - EX*EY/npairs) / sqrt(denom);
+				// scale correlation by number of missing values such that max absolute value is equal to (number of non-NA pairs) / max(# non-NA x, # non-NA y)
+				// for rows with many NA's, this downweights their correlations with more complete rows, without downweighting correlations between rows with similar numbers of NA's. Should effectively keep sparse rows from falsely clustering and also segregate them into their own clusters of similarity
+				if(scale) cor *= npairs / std::max(nx,ny);
+		}
 
-    //std::cerr << 1.0 - d << std::endl;
-    if(fc_isnan(d)){
-        t_float num(EXY - EX*EY/npairs);
-        std::cerr << "nan distance value EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
-        std::cerr << "colinds:";
-        for(size_t i(0); i<colinds.size(); ++i) std::cerr << " " << colinds[i];
-        std::cerr << std::endl;
-    }
+//		//std::cerr << 1.0 - cor << std::endl;
+//		if(fc_isnan(cor)){
+//				t_float num(EXY - EX*EY/npairs);
+//				std::cerr << "nan distance value EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
+//				std::cerr << "colinds:";
+//				for(size_t i(0); i<colinds.size(); ++i) std::cerr << " " << colinds[i];
+//				std::cerr << std::endl;
+//		}
 
-    return d;
+		return cor;
 }
 
 // skipping version: missing values are not counted and 'N' is always the total number of possible pairs
 double pearson_correlation_skip(
-                                 Values const & v1,
-                                 Values const & v2,
-                                 Indices const & colinds
-                                 ){
-    t_float EX(0.0), EY(0.0), EXX(0.0), EYY(0.0), EXY(0.0);
-    t_float x(0.0), y(0.0), d(0.0), denom(0.0), npairs(0.0), ncol(colinds.size());
-    for(size_t i(0); i<colinds.size(); ++i){
-        x = v1[colinds[i]];
-        y = v2[colinds[i]];
-        if(fc_isnan(x) || fc_isnan(y)) continue;
-        npairs += 1;
-        EX += x;
-        EY += y;
-        EXX += x*x;
-        EYY += y*y;
-        EXY += x*y;
-    }
+				                         Values const & v1,
+				                         Values const & v2,
+				                         Indices const & colinds
+				                         ){
+		t_float EX(0.0), EY(0.0), EXX(0.0), EYY(0.0), EXY(0.0);
+		t_float x(0.0), y(0.0), cor(0.0), denom(0.0), npairs(0.0), ncol(colinds.size());
+		for(size_t i(0); i<colinds.size(); ++i){
+				x = v1[colinds[i]];
+				y = v2[colinds[i]];
+				if(fc_isnan(x) || fc_isnan(y)) continue;
+				npairs += 1;
+				EX += x;
+				EY += y;
+				EXX += x*x;
+				EYY += y*y;
+				EXY += x*y;
+		}
 
-    d = 2.0;
-    if(npairs>0){
-        denom = (EXX - EX*EX/ncol)*(EYY - EY*EY/ncol);
-        if(denom>0) d = (EXY - EX*EY/ncol) / sqrt(denom);
-    }
+		cor = 0;
+		if(npairs>0){
+				denom = (EXX - EX*EX/ncol)*(EYY - EY*EY/ncol);
+				if(denom>0) cor = (EXY - EX*EY/ncol) / sqrt(denom);
+		}
 
-    //std::cerr << 1.0 - d << std::endl;
-    if(fc_isnan(d)){
-        t_float num(EXY - EX*EY/npairs);
-        std::cerr << "nan distance value EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
-        std::cerr << "colinds:";
-        for(size_t i(0); i<colinds.size(); ++i) std::cerr << " " << colinds[i];
-        std::cerr << std::endl;
-    }
+//		//std::cerr << 1.0 - cor << std::endl;
+//		if(fc_isnan(cor)){
+//				t_float num(EXY - EX*EY/npairs);
+//				std::cerr << "nan distance value EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
+//				std::cerr << "colinds:";
+//				for(size_t i(0); i<colinds.size(); ++i) std::cerr << " " << colinds[i];
+//				std::cerr << std::endl;
+//		}
 
-    return d;
+		return cor;
 }
 
 void pearson_distances(Matrix const & matrix, Indices const & colinds, t_float * const dist, std::string method="pearson1"){
@@ -165,10 +165,10 @@ void pearson_distances(Matrix const & matrix, Indices const & colinds, t_float *
 	std::ptrdiff_t p(0);
 	for(size_t r1(0); r1<(nrow-1); ++r1){
 		for(size_t r2(r1+1); r2<nrow; ++r2){
-            if(method=="pearson" || method=="pearson1")
-                dist[p++] = 1.0 - pearson_correlation_scale(matrix[r1], matrix[r2], colinds);
-            else // method=="pearson2"
-                dist[p++] = 1.0 - pearson_correlation_skip(matrix[r1], matrix[r2], colinds);
+			if(method=="pearson" || method=="pearson1")
+				dist[p++] = 1.0 - pearson_correlation_scale(matrix[r1], matrix[r2], colinds);
+			else // method=="pearson2"
+				dist[p++] = 1.0 - pearson_correlation_skip(matrix[r1], matrix[r2], colinds);
 
 		}
 	}
@@ -274,7 +274,7 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 
 	// pairwise pearson correlations of the pre-computed spearman ranks
 	std::ptrdiff_t p(0);
-	t_float EX(0.0), EY(0.0), EXX(0.0), EYY(0.0), EXY(0.0), x(0.0), y(0.0), d(0.0), denom(0.0);
+	t_float EX(0.0), EY(0.0), EXX(0.0), EYY(0.0), EXY(0.0), x(0.0), y(0.0), cor(0.0), denom(0.0);
 	size_t r1(0), r2(0), i(0);
 	unsigned npairs(0);
 	for(r1=0; r1<(nrow-1); ++r1){
@@ -294,31 +294,32 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 				EXY += x*y;
 			}
 
-			d = 2.0;
+			cor = 0;
 			if(npairs>0){
 				// nan values can appear during bootstrap resampling, due to repeated values and a zero denominator
-				//d = 1.0 - (EXY - EX*EY/npairs) / sqrt( (EXX - EX*EX/npairs)*(EYY - EY*EY/npairs) );
+				//cor = 1.0 - (EXY - EX*EY/npairs) / sqrt( (EXX - EX*EX/npairs)*(EYY - EY*EY/npairs) );
 				denom = (EXX - EX*EX/npairs)*(EYY - EY*EY/npairs);
-				if(denom>0) d = 1.0 - (EXY - EX*EY/npairs) / sqrt(denom);
+				if(denom>0) cor = (EXY - EX*EY/npairs) / sqrt(denom);
 			}
 
-			//std::cerr << d << std::endl;
-			if(fc_isnan(d)){
-				t_float num(EXY - EX*EY/npairs);
-				std::cerr << "nan distance value for r1 " << r1 << " r2 " << r2 << " EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
-			}
+//			//std::cerr << cor << std::endl;
+//			if(fc_isnan(cor)){
+//				t_float num(EXY - EX*EY/npairs);
+//				std::cerr << "nan distance value for r1 " << r1 << " r2 " << r2 << " EX " << EX << " EY " << EY << " EXX " << EXX << " EYY " << EYY << " EXY " << EXY << " npairs " << npairs << " num " << num << " denom " << denom << " sqrtdenom " << sqrt(denom) << std::endl;
+//			}
 
-			dist[p++] = d;
+			// here, 1-cor turns correlation into a distance
+			dist[p++] = 1-cor;
 
 		}
 	}
 }
 
 void read_matrix_file(
-                      std::string const & filename,
-                      Matrix & rr,
-                      Labels & ids
-                      ){
+				              std::string const & filename,
+				              Matrix & rr,
+				              Labels & ids
+				              ){
 	// open input file
 	std::ifstream file;
 	file.open( filename.c_str() );
@@ -562,7 +563,7 @@ void run_fastcluster(HclustResult & hclust_result, t_float * dist, int method, b
 	Ints merge(2*(N-1),0);
 
 	if (method==METHOD_METR_CENTROID ||
-	    method==METHOD_METR_MEDIAN)
+			method==METHOD_METR_MEDIAN)
 		generate_R_dendrogram<true>(&merge[0], &hclust_result.height[0], &hclust_result.order[0], hc, N);
 	else
 		generate_R_dendrogram<false>(&merge[0], &hclust_result.height[0], &hclust_result.order[0], hc, N);
@@ -585,39 +586,74 @@ void run_fastcluster(HclustResult & hclust_result, t_float * dist, int method, b
 }
 
 void get_distances(
-                   Matrix const & matrix,
-                   Indices const & colinds,
-                   t_float * const dist,
-                   std::string method="pearson",
-                   bool square_distances=false
-                   ){
-	// note that for hierarchical clustering, 'any' distance metric can be used--with varying degrees of relevance or success
-	if(method=="pearson" || method=="pearson1" || method=="pearson2")
-        pearson_distances(matrix, colinds, dist, method);
-    else if(method=="pearson2") pearson_distances(matrix, colinds, dist);
+				           Matrix const & matrix,
+				           Indices const & colinds,
+				           t_float * const dist,
+				           std::string method="pearson",
+				           bool square_distances=false
+				           ){
+	// note that for hierarchical clustering, 'any' distance metric can be used--with varying degrees of relevance, stability, or success
+	if(method=="pearson" || method=="pearson1" || method=="pearson2") pearson_distances(matrix, colinds, dist, method);
 	else if(method=="spearman") spearman_distances(matrix, colinds, dist);
 	else if(method=="euclidean"){
 		euclidean_D2(matrix, colinds, dist);
 		if(!square_distances){
-			const std::ptrdiff_t NN = static_cast<std::ptrdiff_t>((matrix.size())*(matrix.size()-1)/2);
-			for(std::ptrdiff_t p(0); p<NN; ++p) dist[p] = sqrt(dist[p]);
+			const std::size_t NN((matrix.size())*(matrix.size()-1)/2);
+			for(std::size_t p(0); p<NN; ++p) dist[p] = sqrt(dist[p]);
 		}
-	}
-	else{
+	} else {
 		std::cerr << "ERROR: Unsupported distance metric " << method << std::endl;
 		exit(EXIT_FAILURE);
 	}
 
-	if(square_distances && method != "euclidean"){
-		const std::ptrdiff_t NN = static_cast<std::ptrdiff_t>((matrix.size())*(matrix.size()-1)/2);
-		for(std::ptrdiff_t p(0); p<NN; ++p) dist[p] *= dist[p];
-	}
-
-    /*
-	const std::ptrdiff_t NN = static_cast<std::ptrdiff_t>((matrix.size())*(matrix.size()-1)/2);
+	/*
+	const std::size_t NN = static_cast<std::size_t>((matrix.size())*(matrix.size()-1)/2);
 	for(std::ptrdiff_t p(0); p<NN; ++p){
 		if(fc_isnan(dist[p])) std::cout << "nan at p " << p << std::endl;
 	}*/
+
+}
+
+void write_edgelist(
+	Labels const & labels,
+	t_float * const dist,
+	size_t NN,
+	t_float fraction = 0.05
+){
+
+	std::cout << "Writing edgeList..." << std::endl;
+	std::ofstream of;
+
+	// figure out cutoff value for fraction of edges to write (sensible and required for large distance matrices)
+	t_float cutoff(0);
+	if(fraction < 1){
+		// sort distances and cut to keep lowest (closest) edges
+		Values sorted_dist(NN);
+		std::copy(dist, dist+NN, sorted_dist.begin());
+		std::sort(sorted_dist.begin(), sorted_dist.end());
+		for(size_t i(0); i<10; ++i) std::cout << sorted_dist[i] << std::endl;
+		size_t cuti(round(NN*fraction));
+		std::cout << "cuti is " << cuti << std::endl;
+		cutoff = sorted_dist.at(cuti);
+		std::cout << "fraction is " << fraction << " cutoff is " << cutoff << std::endl;
+	}
+
+	std::string fname = "edgeList";
+	fname += "." + std::to_string(fraction);
+	of.open(fname.c_str());
+
+	size_t const n(labels.size());
+	std::ptrdiff_t p(0);
+	for(size_t r1(0); r1<(n-1); ++r1){
+		for(size_t r2(r1+1); r2<n; ++r2){
+//			of << labels.at(r1) << " " << labels.at(r2) << " " << dist[p++] << std::endl;
+			t_float d(dist[p++]);
+			// re-invert from distance (smaller=closer) back to weight (higher=closer)
+			if(d < cutoff) of << r1 << " " << r2 << " " << 1.0-d << std::endl;
+		}
+	}
+
+	of.close();
 }
 
 std::string method_str(int method){
@@ -639,6 +675,7 @@ void usage_error(){
 	<< " -s #                 : ratio of columns to resample (default 1: for multiscale bootstrapping)\n"
 	<< " -m [hclust method]   : clustering method (0. single, 1. complete, 2. average, 3. weighted, 4. ward, 5. centroid, 6. median)\n"
 	<< " -d [distance metric] : distance metric (supported: euclidean, pearson or spearman)\n"
+	<< " -e #                 : write edgelist to file for # fraction of lowest distances\n"
 	<< " -v #                 : verbosity (1 or 2)\n"
 	<< " [file]            : matrix of values to cluster, single-space-delimited, first row is ignored, first column is labels\n"
 	<< "example: [executable] -b 0 -m 4 -d pearson [file]\n"
@@ -656,8 +693,8 @@ int main(int argc, char *argv[]) {
 	std::string datafilename, distmethod("euclidean");
 	unsigned bootstraps(0), verbosity(1);
 	int method(2); // average by default
-	bool square_distances_as_expected(true), square_distances(false);
-	t_float scale(1.0); // ratio of columns to resample for multiscale bootstrapping
+	bool square_distances_as_expected(true), square_distances(false), edgelist(false);
+	t_float scale(1.0), edgelist_fraction(0); // ratio of columns to resample for multiscale bootstrapping
 
 	if (argc < 2) usage_error();
 
@@ -684,6 +721,11 @@ int main(int argc, char *argv[]) {
 
 		} else if (arg == "-noD2") {
 			square_distances_as_expected = false;
+
+		} else if (arg == "-e") {
+			edgelist = true;
+			if (++i >= argc) usage_error();
+			edgelist_fraction = atof(argv[i]);
 
 		} else if (arg == "-v") {
 			if (++i >= argc) usage_error();
@@ -716,37 +758,8 @@ int main(int argc, char *argv[]) {
 	Indices colinds;
 	for(size_t i(0); i<rr.front().size(); ++i) colinds.push_back(i);
 
-    /*// spot-check distances for genes of interest
-    Labels gg;
-    gg.push_back("\"233\"");
-    gg.push_back("\"39799\"");
-    for(Labels::const_iterator it(gg.begin()); it!=gg.end(); ++it){
-        std::cout << *it;
-
-        size_t ind(0);
-        bool found(false);
-        for(size_t r1(0); r1<labels.size(); ++r1){
-            if(labels[r1] == *it){
-                ind=r1;
-                found=true;
-                std::cout << " ind " << ind << std::endl;
-            }
-        }
-        if(!found){
-            std::cout << " not found!" << std::endl;
-            continue;
-        }
-        std::ofstream of;
-        std::string fname("cors." + *it);
-        of.open(fname.c_str());
-        for(size_t r2(0); r2<rr.size(); ++r2){
-            of << labels[r2] << " "<< 1.0 - pearson_correlation_scale(rr[ind], rr[r2], colinds) << std::endl;
-        }
-        of.close();
-    }*/
-
 	// Parameter NN: number of non-redundant, non-self comparisons
-	const std::ptrdiff_t NN = static_cast<std::ptrdiff_t>((nrow)*(nrow-1)/2);
+	const std::size_t NN = static_cast<std::size_t>((nrow)*(nrow-1)/2);
 	std::cout << "NN is " << NN << std::endl;
 	std::cout << "Distance matrix..." << std::endl;
 	auto_array_ptr<t_float> dist;
@@ -755,6 +768,9 @@ int main(int argc, char *argv[]) {
 	// feed whole matrix to distance functions:
 	// for Spearman, this way can pre-compute ranks prior to the N^2 loop
 	get_distances(rr, colinds, dist, distmethod, square_distances);
+
+	// optional: output distances as edge list
+	if (edgelist) write_edgelist(labels, dist, NN, edgelist_fraction);
 
 	// here: do a non-bootstrapped hclust
 	HclustResult result;
@@ -788,14 +804,14 @@ int main(int argc, char *argv[]) {
 
 		// resample columns (e.g. microarray conditions) with replacement
 		Indices colinds;
-		for(t_index i(0); i<nsample; ++i) colinds.push_back(rand() % ncol);
+		for(unsigned i(0); i<nsample; ++i) colinds.push_back(rand() % ncol);
 
 		// this sort probably not necessary
 		//std::sort(colinds.begin(), colinds.end());
 
 		if(verbosity>2){
 			std::cout << "Colinds: ";
-			for(t_index i(0); i<nsample; ++i) std::cout << colinds[i] << " ";
+			for(unsigned i(0); i<nsample; ++i) std::cout << colinds[i] << " ";
 			std::cout << std::endl;
 		}
 
