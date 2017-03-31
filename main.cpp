@@ -639,7 +639,9 @@ void write_edgelist(
 	}
 
 	std::string fname = "edgeList";
-	fname += "." + std::to_string(fraction);
+	std::stringstream ss;
+	ss << fraction;
+	fname += "." + ss.str();
 	of.open(fname.c_str());
 
 	size_t const n(labels.size());
