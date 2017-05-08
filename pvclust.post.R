@@ -91,29 +91,48 @@ hc_big_pvcs = unique( hc_for_pvc[ pvclens > minlen ] )
 cat( sprintf('dendro/dendro.%04d.pdf', hc_big_pvcs), sep='\n', file='hc_big_pvcs_dendro')
 cat( sprintf('exp/exp.%04d.pdf', hc_big_pvcs), sep='\n', file='hc_big_pvcs_exp')
 
-plot_exp = function(values,fname,log=T,...){
-	values = values[ order(rownames(values)), ]
-	pdf(fname,height=8,width=16,colormodel='cmyk')
-	if(log) values = log(values,10)
-	par(mar=c(8,4,4,5))
-	cols = rainbow(nrow(values))
+logcols = c()
+if(file.exists('logcols')) logcols = readLines('logcols')
+
+plot_exp_single = function(values,colors=NULL,...){
+
 	yrange=range(values,na.rm=T)
+	if(is.null(colors))	colors=rainbow(nrow(values))
 	if(all(yrange==0)){
 		cat('all-zero cluster...\n')
 	} else {
-		matplot( t(values), type='n', xaxt='n',, xaxs='i', yaxt='n',...)
+		if(all(is.na(values))) {plot(NA,ylim=c(0,1),xlim=range(ncol(values))); return()}
+		matplot( t(values), type='n', xaxt='n',, xaxs='i',yaxt='n',...)
 		abline(v=1:ncol(values), lty=1, lwd=0.5, col=rgb(0.9,0.9,0.9))
-		matlines( t(values), lty=1, lwd=2, col=cols)
+		matlines( t(values), lty=1, lwd=2, col=colors)
 		axis(1,at=1:ncol(values),labels=NA)
 		text(1:ncol(values), par("usr")[3]-0.15, srt=60, adj=1, xpd=TRUE, labels=colnames(values), cex=0.4)
-		ylv = c(0.01,0.1,1,10,100,1000,10000)
-		ylab=as.character(ylv)
-		if(log) ylv=log(ylv,10)
-		axis(2,at=ylv,labels=ylab,las=2)
-		for(i in 1:nrow(values)){
-			mtext(rownames(values)[i], line=(-0.7*i)-2, col=cols[i],adj=0.97,outer=T,cex=0.7)
-		}
 	}
+	for(i in 1:nrow(values)){
+		mtext(rownames(values)[i], line=(-0.7*i)-2, col=colors[i],adj=1.1,cex=0.7)
+	}
+
+}
+
+plot_exp = function(values,fname,...){
+	values = values[ order(as.numeric(rownames(values))), ]
+	pdf(fname,height=8,width=16,colormodel='cmyk')
+	par(mar=c(8,4,4,5))
+
+	logcols = colnames(values) %in% logcols
+	if(any(logcols)){
+		par(mfrow=c(1,2))
+		plot_exp_single(log(values[,logcols],10))
+		ylv = c(1,10,100,1000,10000)
+		ylab=as.character(ylv)
+		ylv=log(ylv,10)
+		axis(2,at=ylv,labels=ylab,las=2)
+	}
+
+	plot_exp_single(values[,!logcols])
+	axis(2,pretty(range(values[,!logcols],na.rm=T)),min.n=5)
+
+
 	dev.off()
 }
 

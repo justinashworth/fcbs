@@ -16,8 +16,11 @@
 
 typedef std::vector<t_float> Values;
 typedef std::vector<Values> Matrix;
+typedef std::vector<Matrix> Matrices;
+typedef auto_array_ptr<t_float> FCFloatArray;
 
 typedef std::vector<std::string> Labels;
+typedef std::vector<std::string> Filenames;
 typedef std::vector<size_t> Indices;
 typedef std::vector<unsigned> Counts;
 typedef std::vector<int> Ints;
@@ -317,7 +320,7 @@ void spearman_distances(Matrix const & matrix, Indices const & colinds, t_float 
 
 void read_matrix_file(
 				              std::string const & filename,
-				              Matrix & rr,
+				              Matrix & matrix,
 				              Labels & ids
 				              ){
 	// open input file
@@ -354,8 +357,9 @@ void read_matrix_file(
 			values.push_back(value);
 		}
 
-		rr.push_back(values);
+		matrix.push_back(values);
 	}
+	std::cerr << "Read file " << filename << std::endl;
 }
 
 void read_merge_file(std::string const & filename, Merge & merge){
@@ -523,7 +527,7 @@ void run_fastcluster(HclustResult & hclust_result, t_float * dist, int method, b
 	const int N((int)hclust_result.labels.size());
 	// 'members': members in each node (for 'clustering in the middle of the tree')
 	// here, just setting this whole thing to 1 (all data are for terminal branches)
-	auto_array_ptr<t_float> members;
+	FCFloatArray members;
 	members.init(N);
 	for (int i(0); i<N; ++i) members[i] = 1;
 	cluster_result hc(N-1);
@@ -692,7 +696,8 @@ int main(int argc, char *argv[]) {
 
 	std::cout << std::endl;
 
-	std::string datafilename, distmethod("euclidean");
+	std::string distmethod("euclidean");
+	Filenames datafilenames;
 	unsigned bootstraps(0), verbosity(1);
 	int method(2); // average by default
 	bool square_distances_as_expected(true), square_distances(false), edgelist(false);
@@ -734,42 +739,59 @@ int main(int argc, char *argv[]) {
 			verbosity = atoi(argv[i]);
 
 		} else if (arg == "-h" || arg == "--help") usage_error();
+
+		else datafilenames.push_back(argv[i]);
 	}
 
 	// square distances? expected by Ward, centroid and median methods in current version (1.1.13) of fastcluster.\n"
-
-
-	datafilename = argv[argc-1];
-
 	if(method>3 && square_distances_as_expected) square_distances = true;
 
-	// read in matrix
-	Matrix rr;
-	Labels labels;
-	read_matrix_file(datafilename, rr, labels);
+	// read in data.
 
-	if(verbosity>2){
-		size_t ntest(std::min(size_t(5),rr.size()));
-		std::cout << "Sample data:" << std::endl;
-		for(size_t i(0); i<ntest; ++i){ std::cout << labels[i] << " " << rr[i] << std::endl; }
+	// TO DO: If multiple matrices given, they will be read in separately, scored independently by distance metric, and distances combined (e.g. added)
+	// this is useful for multiple datasets of orthogonal measurements (e.g. RNA-seq and microarray) with completely different scales or distributions, but with common ids to cluster in an aggregative manner
+	// (NOT CURRENTLY IMPLEMENTED)
+
+	Matrices matrices;
+	Labels labels;
+	for(Filenames::iterator it(datafilenames.begin()); it!=datafilenames.end(); ++it){
+		matrices.push_back( Matrix() );
+		Labels sublabels;
+		read_matrix_file(*it, matrices.back(), sublabels);
+		// check labels are a 1:1 match, otherwise abort
+		if(labels.size()==0) labels = sublabels;
+		else{
+			if(sublabels != labels){
+				std::cerr << "labels do not match between matrices, aborting" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+		}
 	}
 
-	const size_t nrow(rr.size()), ncol(rr.front().size());
+	if(verbosity>2){
+		for(Matrices::iterator it(matrices.begin()); it!=matrices.end(); ++it){
+			size_t ntest(std::min(size_t(5),it->size()));
+			std::cout << "Sample data:" << std::endl;
+			for(size_t i(0); i<ntest; ++i){ std::cout << labels[i] << " " << (*it)[i] << std::endl; }
+		}
+	}
+
+	const size_t nrow(matrices.front().size()), ncol(matrices.front().front().size());
 
 	// dinstance func expects column indices, here just feed 1:ncol (becomes useful for bootstrap resampling)
 	Indices colinds;
-	for(size_t i(0); i<rr.front().size(); ++i) colinds.push_back(i);
+	for(size_t i(0); i<matrices.front().front().size(); ++i) colinds.push_back(i);
 
 	// Parameter NN: number of non-redundant, non-self comparisons
 	const std::size_t NN = static_cast<std::size_t>((nrow)*(nrow-1)/2);
 	std::cout << "NN is " << NN << std::endl;
 	std::cout << "Distance matrix..." << std::endl;
-	auto_array_ptr<t_float> dist;
+	FCFloatArray dist;
 	dist.init(NN);
 
 	// feed whole matrix to distance functions:
 	// for Spearman, this way can pre-compute ranks prior to the N^2 loop
-	get_distances(rr, colinds, dist, distmethod, square_distances);
+	get_distances(matrices.front(), colinds, dist, distmethod, square_distances);
 
 	// optional: output distances as edge list
 	if (edgelist) write_edgelist(labels, dist, NN, edgelist_fraction);
@@ -818,11 +840,11 @@ int main(int argc, char *argv[]) {
 		}
 
 		// resample from columns and create a new distance matrix
-		auto_array_ptr<t_float> dist_resampled;
+		FCFloatArray dist_resampled;
 		dist_resampled.init(NN);
 
 		if(verbosity>1) std::cout << "Distance matrix..." << std::endl;
-		get_distances(rr, colinds, dist_resampled, distmethod, square_distances);
+		get_distances(matrices.front(), colinds, dist_resampled, distmethod, square_distances);
 
 		if(verbosity>1) std::cout << "Fastcluster..." << std::endl;
 		run_fastcluster(bs_result, dist_resampled, method, square_distances);
