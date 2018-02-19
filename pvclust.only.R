@@ -11,6 +11,7 @@ dir.create(denddir)
 axes = hc2axes(pvc$hclust)
 ordlabs = pvc$hclust$labels[ pvc$hclust$order ]
 
+require('dendindexed.R')
 dnd = as.dendrogram.hclust.indexed(pvc$hclust)
 invisible(dendrapply(dnd, function(x){
 	index=attr(x,'index')

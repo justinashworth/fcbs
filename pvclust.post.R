@@ -1,7 +1,14 @@
 source('hclust.lib.R')
 source('pvclust.from.fcbs.R')
 source('plot_pvdend.R')
+source('dendindexed.R')
 require(pvclust)
+require(fastcluster)
+
+mindend = 2
+maxdend = 2000
+
+expylab = "Transcript level (CPM)"
 
 if(!exists('dd')){
 	rfile = 'data'
@@ -44,6 +51,13 @@ if(!exists('clusters')){
 	hc = hc_from_fcbs()
 }
 
+# for plotting dendrograms with pvclust information
+if(exists('clusters')){
+	# requires modified version of pvclust to expose functions and work properly with externally produced bootstraps
+	axes = hc2axes(hc)
+	ordlabs = hc$labels[ hc$order ]
+}
+
 plots = T
 if(plots){
 
@@ -53,8 +67,8 @@ if(!exists('hpk')){
 }
 
 if(!exists('cls')){
-library(dendextendRcpp)
-ncl=750
+require(dendextendRcpp)
+ncl=1000
 if(!ncl %in% names(hpk)){
 	ncls = as.numeric(names(hpk))
 	ncl = ncls[ ncls>ncl ][1]
@@ -62,6 +76,60 @@ if(!ncl %in% names(hpk)){
 cat('Rcpp_cut_lower for',ncl,'clusters\n')
 cls = dendextendRcpp::Rcpp_cut_lower(as.dendrogram(hc),height=hpk[[as.character(ncl)]])
 save(cls,file='cls.RData')
+}
+
+exp_plot = function(expvals, desc=NULL, ...){
+	log='y'
+	par(mar=c(10,4,6,3))
+	ids = rownames(expvals)
+	cols = rainbow(length(ids))
+	matplot( t(expvals), type='n', xaxt='n', xaxs='i', log=log, ...)
+	matlines( t(expvals), lty=1, lwd=2, col=cols)
+	axis(1, las=2, at=1:ncol(expvals), labels=colnames(expvals), cex.axis=0.5)
+	if(!is.null(desc)){
+		for(i in 1:length(ids)){
+			mtext(ids[i], line=-1*i, col=cols[i])
+		}
+	}
+}
+
+plot_exp_single = function(values,colors=NULL,...){
+	yrange=range(values,na.rm=T)
+	if(is.null(colors))	colors=rainbow(nrow(values))
+	if(all(yrange==0)){
+		cat('all-zero cluster...\n')
+	} else {
+		if(all(is.na(values))) {plot(NA,ylim=c(0,1),xlim=range(ncol(values))); return()}
+		matplot( t(values), type='n', xaxt='n',, xaxs='i',yaxt='n',...)
+		abline(v=1:ncol(values), lty=1, lwd=0.5, col=rgb(0.9,0.9,0.9))
+		matlines( t(values), lty=1, lwd=2, col=colors)
+		axis(1,at=1:ncol(values),labels=NA)
+		text(1:ncol(values), par("usr")[3]-0.15, srt=60, adj=1, xpd=TRUE, labels=colnames(values), cex=0.4)
+	}
+	for(i in 1:nrow(values)){
+		mtext(rownames(values)[i], line=(-0.7*i)-2, col=colors[i],adj=1.1,cex=0.7)
+	}
+}
+
+plot_exp = function(values,fname,...){
+	values = values[ order(as.numeric(rownames(values))), ]
+	pdf(fname,height=8,width=16,colormodel='cmyk')
+	par(mar=c(8,4,4,5))
+
+	logcols = colnames(values) %in% logcols
+	if(any(logcols)){
+		par(mfrow=c(1,2))
+		plot_exp_single(log(values[,logcols],10))
+		ylv = c(1,10,100,1000,10000)
+		ylab=as.character(ylv)
+		ylv=log(ylv,10)
+		axis(2,at=ylv,labels=ylab,las=2)
+	}
+
+	plot_exp_single(values[,!logcols])
+	axis(2,pretty(range(values[,!logcols],na.rm=T)),min.n=5)
+
+	dev.off()
 }
 
 desctab = read.delim('desc')
@@ -94,61 +162,14 @@ cat( sprintf('exp/exp.%04d.pdf', hc_big_pvcs), sep='\n', file='hc_big_pvcs_exp')
 logcols = c()
 if(file.exists('logcols')) logcols = readLines('logcols')
 
-plot_exp_single = function(values,colors=NULL,...){
-
-	yrange=range(values,na.rm=T)
-	if(is.null(colors))	colors=rainbow(nrow(values))
-	if(all(yrange==0)){
-		cat('all-zero cluster...\n')
-	} else {
-		if(all(is.na(values))) {plot(NA,ylim=c(0,1),xlim=range(ncol(values))); return()}
-		matplot( t(values), type='n', xaxt='n',, xaxs='i',yaxt='n',...)
-		abline(v=1:ncol(values), lty=1, lwd=0.5, col=rgb(0.9,0.9,0.9))
-		matlines( t(values), lty=1, lwd=2, col=colors)
-		axis(1,at=1:ncol(values),labels=NA)
-		text(1:ncol(values), par("usr")[3]-0.15, srt=60, adj=1, xpd=TRUE, labels=colnames(values), cex=0.4)
-	}
-	for(i in 1:nrow(values)){
-		mtext(rownames(values)[i], line=(-0.7*i)-2, col=colors[i],adj=1.1,cex=0.7)
-	}
-
-}
-
-plot_exp = function(values,fname,...){
-	values = values[ order(as.numeric(rownames(values))), ]
-	pdf(fname,height=8,width=16,colormodel='cmyk')
-	par(mar=c(8,4,4,5))
-
-	logcols = colnames(values) %in% logcols
-	if(any(logcols)){
-		par(mfrow=c(1,2))
-		plot_exp_single(log(values[,logcols],10))
-		ylv = c(1,10,100,1000,10000)
-		ylab=as.character(ylv)
-		ylv=log(ylv,10)
-		axis(2,at=ylv,labels=ylab,las=2)
-	}
-
-	plot_exp_single(values[,!logcols])
-	axis(2,pretty(range(values[,!logcols],na.rm=T)),min.n=5)
-
-
-	dev.off()
-}
-
 plot_dends=T
 if(plot_dends){
-	qs =c()
-	if(file.exists('qs')) qs = readLines('qs')
 	desc = paste(desctab$id,desctab$desc)
 	names(desc) = as.character(desctab$id)
 
-	library(fastcluster)
 	baseh = 480
-	maxdend = 2000
 	denddir = 'dendro'
 	dir.create(denddir)
-	expylab = "transcript expression"
 	expdir = 'exp'
 	dir.create(expdir)
 	dir.create('pvc')
@@ -156,30 +177,7 @@ if(plot_dends){
 	axes = hc2axes(hc)
 	ordlabs = hc$labels[ hc$order ]
 
-	# make extra plots for specific queries
-	qsi = sapply(qs, function(x){ which(sapply(cls, function(y){x %in% labels(y)})) } )
-	pvi = sapply(qs, function(x){ which(sapply(clpick$clusters, function(y){x %in% y})) } )
-	for(qq in qs){
-		for(i in qsi[[qq]]){
-			cat('plots for',qq,'\n')
-			cl = which(sapply(cls,function(x){qq %in% labels(x)}))
-			ids = labels(cls[[cl]])
-			sz = length(ids)
-			if(sz>maxdend){
-				cat('cluster',i,'too big to plot dendrogram (',sz,'genes)\n')
-				next
-			}
-			pdf(paste(denddir,'/',qq,'.',i,'.dend.pdf',sep=''),height=max(4,length(ids)/4))
-			plot_pvdend(cls[[cl]], ordlabs, axes, desc)
-			dev.off()
-
-			pdf(paste(qq,'.',i,'.pdf',sep=''))
-			matplot( t(dd[ids,]), main=sprintf('cluster %s: %i genes',i,length(ids)), type='l', col=rgb(0,0,0,0.6), lty=1, lwd=2)
-			mtext(side=3, line=-1*(1:length(ids)),text=ids[ order(as.numeric(ids)) ], adj=0.9)
-			dev.off()
-		}
-	}
-
+	# looping over non-pvc height-based hc clusters here:
 	for(i in 1:length(cls)){
 		ids = labels(cls[[i]])
 		sz = length(ids)
@@ -188,40 +186,69 @@ if(plot_dends){
 			cat('cluster',i,'too big to plot (',sz,'genes)\n')
 			next
 		}
-		if(sz<2){
+		if(sz<mindend){
 			cat('cluster',i,'too small to plot (',sz,'genes)\n')
 			next
 		}
 
-		pdf(sprintf('%s/pvdend.%04d.pdf',denddir,i),height=max(4,length(ids)/4),width=12)
+		# dendrogram for height-based hc clusters, including pvclust information at branchpoints
+		pdf(sprintf('%s/pvdend.%04d.pdf',denddir,i),height=max(4,length(ids)/4),width=10,colormodel='cmyk')
 		main = sprintf('Cluster %i: dendrogram with pvclust AU p-values',i)
 		plot_pvdend(cls[[i]], ordlabs, axes, desc)
 		dev.off()
 
 		# plot expression lineplot
-		main = sprintf('Cluster %i: expression values',i)
-		values = as.matrix(dd[ids,])
-		rownames(values)=ids
 		fname = sprintf('%s/exp.%04d.pdf',expdir,i)
-
-		plot_exp(values,fname,main=main,ylab=expylab,xlab='')
-
+		pdf(sprintf(fname,expdir,i),height=8,width=20,colormodel='cmyk')
+		main = sprintf('Cluster %i: expression values',i)
+		exp_plot(dd[ids,],desc,main=main,ylab=expylab)
+		dev.off()
+#		plot_exp(values,fname,main=main,ylab=expylab,xlab='')
 	}
 
-	# now pvclust pvpicked cluster expression plots
-	for(i in 1:length(clpick$clusters)){
-		cat( sprintf('pvc cluster %i\n',i) )
-
-		fname = sprintf('pvc/exp.%04d.pdf',i)
-		ids = clpick$clusters[[i]]
-		values = as.matrix(dd[ids,])
-		rownames(values)=ids
-		main = sprintf('Bootstrap Cluster %i',i)
-		plot_exp(values,fname,main=main,ylab=expylab,xlab='')
-	}
 }
 
-do_uncontained = F
+# plot out all of the actual pvclust clusters themselves, agnostic of the hc height-based clustering
+plot_all_pvclusters=T
+if(plot_all_pvclusters){
+cat('Plotting all PVClust clusters\n')
+
+pvcdenddir = 'pvc_dendro'
+pvcexpdir = 'pvc_exp'
+
+dir.create(pvcdenddir)
+dir.create(pvcexpdir)
+
+dnd = as.dendrogram.hclust.indexed(pvc$hclust)
+invisible(dendrapply(dnd, function(x){
+	index=attr(x,'index')
+	if(!is.leaf(x)){
+		if(index %in% clpick$edges){
+
+			ids = labels(x)
+			sz = length(ids)
+			pickindex = which(clpick$edges==index)
+			cat('dendro',pickindex,sz,'transcripts\n')
+			if(sz<mindend){cat('cluster',pickindex,'too small (',sz,'genes)\n'); return()}
+			if(sz>maxdend){cat('cluster',pickindex,'too big (',sz,'genes)\n'); return()}
+			main = sprintf('Cluster %i: dendrogram with pvclust AU p-values',pickindex)
+
+			# dendrogram
+			pdf(sprintf('%s/pvcdend.%04d.pdf',pvcdenddir,pickindex),width=10,height=max(4,sz/4),colormodel='cmyk')
+			plot_pvdend(x, ordlabs, axes, desc, main=main)
+			dev.off()
+
+			# exp lineplot
+			pdf(sprintf('%s/pvcexp.%04d.pdf',pvcexpdir,pickindex),height=8,width=20,colormodel='cmyk')
+			main = sprintf('PVClust %i: expression values',pickindex)
+			exp_plot(dd[ids,],desc,main=main,ylab=expylab)
+			dev.off()
+		}
+	}
+}))
+}
+
+do_uncontained = T
 if(do_uncontained & !exists('uncontained')){
 # figure out which pvpicked clusters are not contained within height-based clusters, and create output for them
 cat('adding significant pvclust clusters not already contained within height-based clusters\n')
@@ -247,4 +274,4 @@ allcls = lapply(cls, function(x){labels(x)})
 
 #cluster_stats(dd,allcls)
 
-}
+} # plots
