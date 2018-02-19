@@ -751,6 +751,7 @@ int main(int argc, char *argv[]) {
 	// TO DO: If multiple matrices given, they will be read in separately, scored independently by distance metric, and distances combined (e.g. added)
 	// this is useful for multiple datasets of orthogonal measurements (e.g. RNA-seq and microarray) with completely different scales or distributions, but with common ids to cluster in an aggregative manner
 	// (NOT CURRENTLY IMPLEMENTED)
+	// requirements of implementation includes separately sub-sampling separate matrices for bootstrapping
 
 	Matrices matrices;
 	Labels labels;
