@@ -655,7 +655,7 @@ void write_edgelist(
 //			of << labels.at(r1) << " " << labels.at(r2) << " " << dist[p++] << std::endl;
 			t_float d(dist[p++]);
 			// re-invert from distance (smaller=closer) back to weight (higher=closer)
-			if(d < cutoff) of << r1 << " " << r2 << " " << 1.0-d << std::endl;
+			if(d < cutoff) of << labels.at(r1) << " " << labels.at(r2) << " " << 1.0-d << std::endl;
 		}
 	}
 
