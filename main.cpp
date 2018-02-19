@@ -334,7 +334,7 @@ void read_matrix_file(
 	while ( getline( file, line ) ) {
 		// skip the first line, which should be a header
 		if(firstline){ firstline=false; continue; }
-		std::istringstream linestream(line);
+		std::stringstream linestream(line);
 		Values values;
 		std::string token;
 		bool id(true);

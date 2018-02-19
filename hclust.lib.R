@@ -35,6 +35,18 @@ plot_exp_and_dendro = function(mat,dendro,expmain='Expression cluster',dendmain=
 	plot(dendro, horiz=T,main=dendmain,edge.root=T)
 }
 
+cl_for_id = function(cls,ids){
+	if(is.dendrogram(cls[[1]])){
+		sapply(ids,function(id){
+			which(sapply(cls,function(cl){id %in% labels(cl)}))
+		})
+	} else {
+		sapply(ids,function(id){
+			which(sapply(cls,function(cl){id %in% cl}))
+		})
+	}
+}
+
 plot_clusters_for_ids = function(ratios,clusters_,qids,maxplot=200){
 	for(qid in qids){
 		cat('plotting clusters for',qid,'\n')
