@@ -13,7 +13,7 @@ plot_pvdend = function(dend,labord,pvaxes,desc=NULL,...){
 		})
 	}
 	inds = which(labord %in% ids)
-	par(mar=c(5,1,3,24))
+	par(mar=c(5,1,3,30))
 	plot(dend,horiz=T,edge.root=T,...)
 
 	relev = pvaxes$x.axis >= min(inds) & pvaxes$x.axis <= max(inds)

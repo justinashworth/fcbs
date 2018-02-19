@@ -39,7 +39,7 @@ hc = pvc$hclust
 
 if(!exists('clusters')){
 	pt='au'
-	pvcut=0.90
+	pvcut=0.80
 	cat(sprintf('pvpick with P[%s]>=%f\n',pt,pvcut))
 	clpick = pvpick(pvc,pv=pt,alpha=pvcut,max.only=T)
 	save(clpick,file='pvpick.RData')
@@ -78,8 +78,6 @@ cls = dendextendRcpp::Rcpp_cut_lower(as.dendrogram(hc),height=hpk[[as.character(
 save(cls,file='cls.RData')
 }
 
-clids = sapply(cls, function(x){labels(x)})
-
 exp_plot = function(expvals, desc=NULL, ...){
 	log='y'
 	par(mar=c(10,4,6,3))
@@ -95,9 +93,77 @@ exp_plot = function(expvals, desc=NULL, ...){
 	}
 }
 
+plot_exp_single = function(values,colors=NULL,...){
+	yrange=range(values,na.rm=T)
+	if(is.null(colors))	colors=rainbow(nrow(values))
+	if(all(yrange==0)){
+		cat('all-zero cluster...\n')
+	} else {
+		if(all(is.na(values))) {plot(NA,ylim=c(0,1),xlim=range(ncol(values))); return()}
+		matplot( t(values), type='n', xaxt='n',, xaxs='i',yaxt='n',...)
+		abline(v=1:ncol(values), lty=1, lwd=0.5, col=rgb(0.9,0.9,0.9))
+		matlines( t(values), lty=1, lwd=2, col=colors)
+		axis(1,at=1:ncol(values),labels=NA)
+		text(1:ncol(values), par("usr")[3]-0.15, srt=60, adj=1, xpd=TRUE, labels=colnames(values), cex=0.4)
+	}
+	for(i in 1:nrow(values)){
+		mtext(rownames(values)[i], line=(-0.7*i)-2, col=colors[i],adj=1.1,cex=0.7)
+	}
+}
+
+plot_exp = function(values,fname,...){
+	values = values[ order(as.numeric(rownames(values))), ]
+	pdf(fname,height=8,width=16,colormodel='cmyk')
+	par(mar=c(8,4,4,5))
+
+	logcols = colnames(values) %in% logcols
+	if(any(logcols)){
+		par(mfrow=c(1,2))
+		plot_exp_single(log(values[,logcols],10))
+		ylv = c(1,10,100,1000,10000)
+		ylab=as.character(ylv)
+		ylv=log(ylv,10)
+		axis(2,at=ylv,labels=ylab,las=2)
+	}
+
+	plot_exp_single(values[,!logcols])
+	axis(2,pretty(range(values[,!logcols],na.rm=T)),min.n=5)
+
+	dev.off()
+}
+
+desctab = read.delim('desc')
+clstab = as.data.frame( do.call(rbind, lapply(1:length(cls), function(i){ cbind(i,labels(cls[[i]]))})))
+names(clstab) = c('cl','id')
+pvctab = as.data.frame( do.call(rbind, lapply(1:length(clpick$clusters), function(i){ cbind(i,clpick$clusters[[i]])})))
+names(pvctab) = c('pvc','id')
+m = merge(clstab, pvctab, by='id', all.x=T, sort=F)
+m = merge(m, desctab, by='id', all.x=T, sort=F)
+hc_for_id = as.numeric(as.character(m$cl))
+names(hc_for_id) = as.character(m$id)
+m = m[order(m$cl,m$pvc,m$id),]
+tsv(m,'cls.tsv')
+
+#warning: tapply sorts by as.character(index) here:
+clids = tapply(m$id,m$cl,list)
+# sort numerically so list index == cluster index
+clids = clids[ order(as.numeric(names(clids))) ]
+
+# convenient lists of image files corresponding to larger bootstrap clusters
+pvclens = sapply(clpick$clusters, length)
+minlen = 9
+cat( sprintf('pvc/exp.%04d.pdf', which( pvclens > minlen )), sep='\n', file='pvc_big_exp')
+hc_for_pvc = m$cl
+names(hc_for_pvc) = m$pvc
+hc_big_pvcs = unique( hc_for_pvc[ pvclens > minlen ] )
+cat( sprintf('dendro/dendro.%04d.pdf', hc_big_pvcs), sep='\n', file='hc_big_pvcs_dendro')
+cat( sprintf('exp/exp.%04d.pdf', hc_big_pvcs), sep='\n', file='hc_big_pvcs_exp')
+
+logcols = c()
+if(file.exists('logcols')) logcols = readLines('logcols')
+
 plot_dends=T
 if(plot_dends){
-	desctab = read.delim('desc')
 	desc = paste(desctab$id,desctab$desc)
 	names(desc) = as.character(desctab$id)
 
@@ -106,6 +172,10 @@ if(plot_dends){
 	dir.create(denddir)
 	expdir = 'exp'
 	dir.create(expdir)
+	dir.create('pvc')
+	# requires modified version of pvclust to expose functions and work properly with externally produced bootstraps
+	axes = hc2axes(hc)
+	ordlabs = hc$labels[ hc$order ]
 
 	# looping over non-pvc height-based hc clusters here:
 	for(i in 1:length(cls)){
@@ -128,11 +198,14 @@ if(plot_dends){
 		dev.off()
 
 		# plot expression lineplot
-		pdf(sprintf('%s/exp.%04d.pdf',expdir,i),height=8,width=20,colormodel='cmyk')
+		fname = sprintf('%s/exp.%04d.pdf',expdir,i)
+		pdf(sprintf(fname,expdir,i),height=8,width=20,colormodel='cmyk')
 		main = sprintf('Cluster %i: expression values',i)
 		exp_plot(dd[ids,],desc,main=main,ylab=expylab)
 		dev.off()
+#		plot_exp(values,fname,main=main,ylab=expylab,xlab='')
 	}
+
 }
 
 # plot out all of the actual pvclust clusters themselves, agnostic of the hc height-based clustering
