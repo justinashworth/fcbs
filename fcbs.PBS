@@ -1,0 +1,29 @@
+#!/bin/bash
+#PBS -M justin.ashworth@uts.edu.au
+#PBS -m n
+#PBS -N fcbs
+#PBS -o fcbs.out
+#PBS -e fcbs.err
+#PBS -S /bin/bash
+#PBS -l walltime=200:00:00
+#PBS -l mem=12GB
+#PBS -l ncpus=1
+
+cd $PBS_O_WORKDIR
+
+module load devel/gcc-4.9.4
+
+fcbs=/shared/homes/129880/code/fcbs/fcbs
+
+rundir=$d.$m/$r
+
+mkdir -p $rundir
+cd $rundir
+
+cp ../../$data data
+
+cmd="$fcbs -b 1000 -d $d -m $m -s $r -e 0.01 data"
+echo $cmd
+$cmd 1> out 2> err
+
+cd ../..
