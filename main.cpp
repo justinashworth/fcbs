@@ -661,7 +661,7 @@ void write_edgelist(
 //			of << labels.at(r1) << " " << labels.at(r2) << " " << dist[p++] << std::endl;
 			t_float d(dist[p++]);
 			// re-invert from distance (smaller=closer) back to weight (higher=closer)
-			if(d < cutoff) of << r1 << " " << r2 << " " << 1.0-d << std::endl;
+			if(d < cutoff) of << labels.at(r1) << " " << labels.at(r2) << " " << 1.0-d << std::endl;
 		}
 	}
 
@@ -757,6 +757,7 @@ int main(int argc, char *argv[]) {
 	// TO DO: If multiple matrices given, they will be read in separately, scored independently by distance metric, and distances combined (e.g. added)
 	// this is useful for multiple datasets of orthogonal measurements (e.g. RNA-seq and microarray) with completely different scales or distributions, but with common ids to cluster in an aggregative manner
 	// (NOT CURRENTLY IMPLEMENTED)
+	// requirements of implementation includes separately sub-sampling separate matrices for bootstrapping
 
 	Matrices matrices;
 	Labels labels;
