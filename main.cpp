@@ -49,7 +49,7 @@ void euclidean_D2(Matrix const & matrix, Indices const & colinds, t_float * cons
 	size_t const nrow(matrix.size()), ncol(colinds.size());
 	size_t r1(0), r2(0), i(0);
 	std::ptrdiff_t p(0);
-	t_float x(0.0), y(0.0), diff(0.0), d(0.0);
+	t_float x(0.0), y(0.0), diff(0.0), d(0.0), max(0.0);
 	unsigned npairs(0);
 	for(r1=0; r1<(nrow-1); ++r1){
 		for(r2=r1+1; r2<nrow; ++r2){
@@ -66,19 +66,25 @@ void euclidean_D2(Matrix const & matrix, Indices const & colinds, t_float * cons
 			}
 
 			if(npairs<1){
-				std::cerr << "NA distance due to completely non-overlapping data: this is not allowed for Euclidean distance metrics! Imputation is recommended (e.g. K-nearest neighbors)" << std::endl;
-				exit(EXIT_FAILURE);
+//				std::cerr << "NA distance due to completely non-overlapping data!" << std::endl;
+//				exit(EXIT_FAILURE);
+				// this will later be set to the max value
 				dist[p++] = NANVALUE;
 
 			} else {
 				// in the case of any partially missing data, upscale the calculated distance to promote comparability between all different numbers of pairwise comparisons
 				d *= ncol/npairs;
 				dist[p++] = d;
+				if(d>max) max=d;
 
 			}
 		}
 
 	}
+
+	// safety net: if any NAN values resulted for elements with no overlapping pairs of values, set these to max distance in the matrix for stability/continuability
+	const std::size_t NN(nrow*(nrow-1)/2);
+	for(std::size_t p(0); p<NN; ++p) if(dist[p] == NANVALUE) dist[p] = max;
 
 }
 
@@ -596,13 +602,13 @@ void get_distances(
 				           std::string method="pearson",
 				           bool square_distances=false
 				           ){
+	const std::size_t NN((matrix.size())*(matrix.size()-1)/2);
 	// note that for hierarchical clustering, 'any' distance metric can be used--with varying degrees of relevance, stability, or success
 	if(method=="pearson" || method=="pearson1" || method=="pearson2") pearson_distances(matrix, colinds, dist, method);
 	else if(method=="spearman") spearman_distances(matrix, colinds, dist);
 	else if(method=="euclidean"){
 		euclidean_D2(matrix, colinds, dist);
 		if(!square_distances){
-			const std::size_t NN((matrix.size())*(matrix.size()-1)/2);
 			for(std::size_t p(0); p<NN; ++p) dist[p] = sqrt(dist[p]);
 		}
 	} else {

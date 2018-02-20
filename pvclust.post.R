@@ -166,6 +166,8 @@ plot_dends=T
 if(plot_dends){
 	desc = paste(desctab$id,desctab$desc)
 	names(desc) = as.character(desctab$id)
+	# this may be necessary if the transcripts clustered have '.t1' suffices, but the annotation ids don't
+#	names(desc) = sprintf('%s.t1',names(desc))
 
 	baseh = 480
 	denddir = 'dendro'
@@ -193,7 +195,7 @@ if(plot_dends){
 
 		# dendrogram for height-based hc clusters, including pvclust information at branchpoints
 		pdf(sprintf('%s/pvdend.%04d.pdf',denddir,i),height=max(4,length(ids)/4),width=10,colormodel='cmyk')
-		main = sprintf('Cluster %i: dendrogram with pvclust AU p-values',i)
+		main = sprintf('Cluster %i',i)
 		plot_pvdend(cls[[i]], ordlabs, axes, desc)
 		dev.off()
 
@@ -231,7 +233,7 @@ invisible(dendrapply(dnd, function(x){
 			cat('dendro',pickindex,sz,'transcripts\n')
 			if(sz<mindend){cat('cluster',pickindex,'too small (',sz,'genes)\n'); return()}
 			if(sz>maxdend){cat('cluster',pickindex,'too big (',sz,'genes)\n'); return()}
-			main = sprintf('Cluster %i: dendrogram with pvclust AU p-values',pickindex)
+			main = sprintf('Cluster %i',pickindex)
 
 			# dendrogram
 			pdf(sprintf('%s/pvcdend.%04d.pdf',pvcdenddir,pickindex),width=10,height=max(4,sz/4),colormodel='cmyk')
