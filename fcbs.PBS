@@ -20,7 +20,7 @@ rundir=$d.$m/$r
 mkdir -p $rundir
 cd $rundir
 
-cp ../../$data data
+ln -s ../../$data data
 
 cmd="$fcbs -b 1000 -d $d -m $m -s $r -e 0.01 data"
 echo $cmd

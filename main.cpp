@@ -69,22 +69,20 @@ void euclidean_D2(Matrix const & matrix, Indices const & colinds, t_float * cons
 //				std::cerr << "NA distance due to completely non-overlapping data!" << std::endl;
 //				exit(EXIT_FAILURE);
 				// this will later be set to the max value
-				dist[p++] = NANVALUE;
-
+				dist[p++] = -1;
 			} else {
 				// in the case of any partially missing data, upscale the calculated distance to promote comparability between all different numbers of pairwise comparisons
 				d *= ncol/npairs;
 				dist[p++] = d;
-				if(d>max) max=d;
 
 			}
-		}
+			if(d>max) max=d;
+		} // row2
+	} // row1
 
-	}
-
-	// safety net: if any NAN values resulted for elements with no overlapping pairs of values, set these to max distance in the matrix for stability/continuability
+	// attempted safety net: if any NAN values resulted for elements with no overlapping pairs of values, set these to max distance in the matrix
 	const std::size_t NN(nrow*(nrow-1)/2);
-	for(std::size_t p(0); p<NN; ++p) if(dist[p] == NANVALUE) dist[p] = max;
+	for(std::size_t p(0); p<NN; ++p) if(dist[p]==-1) dist[p] = max;
 
 }
 
