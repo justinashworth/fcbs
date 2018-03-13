@@ -26,9 +26,6 @@ $(EXE): $(OBJECTFILES)
 #	$(CXX) $(OBJECTFILES) $(LDLIBS) -o $(EXE) $(LDFLAGS)
 	$(CXX) $(OBJECTFILES) $(LDLIBS) -o $(EXE)
 
-main.o: main.cpp
-	$(CXX) main.cpp -c $(CXXFLAGS)
-
 clean:
 	-rm *.o $(EXE)
 

@@ -12,6 +12,8 @@
 #include <iomanip>
 #include <set>
 
+// too much templated code and #defs a responsible/efficient header to exist
+//#include "fastcluster.lib.h"
 #include "fastcluster.lib.cpp"
 
 typedef std::vector<t_float> Values;
@@ -34,6 +36,7 @@ struct HclustResult {
 	Merge merge;
 	Values height;
 	Ints order;
+	Values pydend;
 };
 typedef std::vector<HclustResult> HclustResults;
 
@@ -489,7 +492,7 @@ void output_node_counts(Counts const & nodecounts, std::string prefix=""){
 	of.close();
 }
 
-void output_hclust(HclustResult const & result, std::string prefix=""){
+void output_hc(HclustResult const & result, std::string prefix=""){
 	std::ofstream of;
 
 	std::string fname = prefix+"labels";
@@ -502,8 +505,8 @@ void output_hclust(HclustResult const & result, std::string prefix=""){
 	of.open(fname.c_str());
 	for(size_t j(0); j<2; ++j){
 		for(size_t i(0); i<result.merge.size(); ++i) of << result.merge[i][j] << " ";
+		of << '\n';
 	}
-	of << '\n';
 	of.close();
 
 	fname = prefix+"height";
@@ -518,9 +521,14 @@ void output_hclust(HclustResult const & result, std::string prefix=""){
 	of << '\n';
 	of.close();
 
+	fname = prefix+"pydend";
+	of.open(fname.c_str());
+	std::copy(result.pydend.begin(), result.pydend.end(), std::ostream_iterator<t_float>(of, " "));
+	of << '\n';
+	of.close();
 }
 
-void run_fastcluster(HclustResult & hclust_result, t_float * dist, int method, bool sqrt_heights=false){
+void run_fastcluster(HclustResult & hc_result, t_float * dist, int method, bool sqrt_heights=false){
 	//std::cout << "Fastcluster..." << std::endl;
 
 	if (method<METHOD_METR_SINGLE || method>METHOD_METR_MEDIAN) {
@@ -528,7 +536,7 @@ void run_fastcluster(HclustResult & hclust_result, t_float * dist, int method, b
 		exit(EXIT_FAILURE);
 	}
 
-	const int N((int)hclust_result.labels.size());
+	const int N((int)hc_result.labels.size());
 	// 'members': members in each node (for 'clustering in the middle of the tree')
 	// here, just setting this whole thing to 1 (all data are for terminal branches)
 	FCFloatArray members;
@@ -565,30 +573,36 @@ void run_fastcluster(HclustResult & hclust_result, t_float * dist, int method, b
 	}
 
 	// here init vector sizes and pass array pointers to fastcluster
-	hclust_result.height.resize(N-1);
-	hclust_result.order.resize(N);
+	hc_result.height.resize(N-1);
+	hc_result.order.resize(N);
+	hc_result.pydend.resize((N-1)*4);
 
 	Ints merge(2*(N-1),0);
 
+
 	if (method==METHOD_METR_CENTROID ||
-			method==METHOD_METR_MEDIAN)
-		generate_R_dendrogram<true>(&merge[0], &hclust_result.height[0], &hclust_result.order[0], hc, N);
-	else
-		generate_R_dendrogram<false>(&merge[0], &hclust_result.height[0], &hclust_result.order[0], hc, N);
+			method==METHOD_METR_MEDIAN){
+		generate_R_dendrogram<true>(&merge[0], &hc_result.height[0], &hc_result.order[0], hc, N);
+		generate_SciPy_dendrogram<true>(&hc_result.pydend[0], hc, N);
+	} else {
+		generate_R_dendrogram<false>(&merge[0], &hc_result.height[0], &hc_result.order[0], hc, N);
+		generate_SciPy_dendrogram<false>(&hc_result.pydend[0], hc, N);
+	}
 
 	// methods 4, 5, and 6 (Euclidean methods) expect squared distances, and then the R heights must be square rooted to reflect methods accurate to Ward's original method
 	if(sqrt_heights){
-		for(Values::iterator it(hclust_result.height.begin()); it!=hclust_result.height.end(); ++it)
+		for(Values::iterator it(hc_result.height.begin()); it!=hc_result.height.end(); ++it)
 			*it = sqrt(*it);
 	}
 
 	// convert merge (flat array) into two-column Merge matrix for later convenience/intelligibility
-	hclust_result.merge.resize(N-1);
+	hc_result.merge.resize(N-1);
 	for(int i(0); i<N-1; ++i){
-		hclust_result.merge[i].resize(2);
+		hc_result.merge[i].resize(2);
 		// merge array is filled by column
-		for(size_t j(0); j<2; ++j) hclust_result.merge[i][j] = merge[i+(N-1)*j];
+		for(size_t j(0); j<2; ++j) hc_result.merge[i][j] = merge[i+(N-1)*j];
 	}
+
 
 	members.free();
 }
@@ -783,7 +797,7 @@ int main(int argc, char *argv[]) {
 
 	const size_t nrow(matrices.front().size()), ncol(matrices.front().front().size());
 
-	// dinstance func expects column indices, here just feed 1:ncol (becomes useful for bootstrap resampling)
+	// distance func expects column indices, here just feed 1:ncol (becomes useful for bootstrap resampling)
 	Indices colinds;
 	for(size_t i(0); i<matrices.front().front().size(); ++i) colinds.push_back(i);
 
@@ -810,7 +824,7 @@ int main(int argc, char *argv[]) {
 	run_fastcluster(result, dist, method, square_distances);
 
 	// output result
-	output_hclust(result,"hc.");
+	output_hc(result,"hc.");
 
 	// to do: cluster-level analysis with updated distances and a re-clustering
 	// e.g. MEME, Weeder, and/or a native, in-memory fast motif discovery routine
