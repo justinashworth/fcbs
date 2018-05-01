@@ -714,7 +714,7 @@ int main(int argc, char *argv[]) {
 
 	std::cout << std::endl;
 
-	std::string distmethod("euclidean");
+	std::string distmethod("euclidean"), prefix("");
 	Filenames datafilenames;
 	unsigned bootstraps(0), verbosity(1);
 	int method(2); // average by default
@@ -739,6 +739,10 @@ int main(int argc, char *argv[]) {
 		} else if (arg == "-m") {
 			if (++i >= argc) usage_error();
 			method = atoi(argv[i]);
+
+		} else if (arg == "-p") {
+			if (++i >= argc) usage_error();
+			prefix = argv[i];
 
 		} else if (arg == "-d") {
 			if (++i >= argc) usage_error();
@@ -879,12 +883,12 @@ int main(int argc, char *argv[]) {
 		// outputs that can be read into R
 		std::ofstream of;
 
-		std::string fname = "countscurrent";
+		std::string fname = prefix + "countscurrent";
 		of.open(fname.c_str());
 		for(Counts::const_iterator it(nodecounts.begin()); it!=nodecounts.end(); ++it) of << *it << '\n';
 		of.close();
 
-		fname = "lastiter";
+		fname = prefix + "lastiter";
 		of.open(fname.c_str());
 		of << bs << '\n';
 		of.close();
@@ -894,8 +898,8 @@ int main(int argc, char *argv[]) {
 	}
 	std::cout << std::endl;
 
-	output_bootstrap_results(bootstrap_results);
-	output_node_counts(nodecounts);
+//	output_bootstrap_results(bootstrap_results);
+	output_node_counts(nodecounts,prefix);
 
 	// maybe in the future: height-based agglomeration to yield k clusters (see dendextendRcpp?),
 	// empirical distributions of pairwise cluster co-memberships for many choices of k
