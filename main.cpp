@@ -11,6 +11,7 @@
 #include <iterator>
 #include <iomanip>
 #include <set>
+#include <map>
 
 // too much templated code and #defs a responsible/efficient header to exist
 //#include "fastcluster.lib.h"
@@ -23,11 +24,15 @@ typedef auto_array_ptr<t_float> FCFloatArray;
 
 typedef std::vector<std::string> Labels;
 typedef std::vector<std::string> Filenames;
+typedef std::vector<std::string> Sequences;
 typedef std::vector<size_t> Indices;
 typedef std::vector<unsigned> Counts;
 typedef std::vector<int> Ints;
-typedef std::vector<Ints> Members;
+typedef std::vector< std::set<int> > Members;
 typedef std::vector<Ints> Merge;
+
+typedef std::map<std::string,int> KMerCount;
+typedef std::vector<KMerCount> KMerCounts;
 
 static t_float const NANVALUE = std::numeric_limits<t_float>::quiet_NaN();
 
@@ -393,52 +398,46 @@ void read_merge_file(std::string const & filename, Merge & merge){
 
 // construct a list of hierarchical tree members based on an hclust tree structure (a.k.a. 'merge')
 // this is a re-implementation of the hc2split function from pvclust
+// this function walks up the tree, aggregating combined memberships at each row or "edge"
 void get_members(Merge const & merge, Members & members){
 	size_t const nrow(merge.size());
 	members.clear();
 	members.resize(nrow);
+	// build up edge memberships by edge, beginning with 'child' edges that should appear first
+	// note that this merge structure must be sorted from smallest child/leaf edges down to tree root, which should already be happening during the run_fastcluster + generate_R_dendrogram calls
 	for(size_t i(0); i<nrow; ++i){
-		//std::cout << i << " ";
-		int ai(merge[i][0]);
-		//std::cout << ai << " ";
-		if(ai<0) {members[i].clear(); members[i].push_back(-1*ai);}
+		int index_a(merge[i][0]);
+		// found index is a leaf (R denotes this as -1*x, 1-indexed): add to members
+		if(index_a<0) members[i].insert(-1*index_a);
+		// found index is a sub-branch: add its previously-found members to this edge's members
 		// note: indices in R and fastcluster's merge table are 1-indexed
-		else members[i] = members[ai-1];
-
-		ai = merge[i][1];
-		if(ai<0) members[i].push_back(-1*ai);
-		else members[i].insert(members[i].end(),members[ai-1].begin(),members[ai-1].end());
+		// note that 'index-1' here is the 0-indexed array index for the child leaf/branch located at 'index' 
+		else members[i].insert(members[index_a-1].begin(),members[index_a-1].end());
+		// do it again for the second index of this edge
+		int index_b(merge[i][1]);
+		if(index_b<0) members[i].insert(-1*index_b);
+		else members[i].insert(members[index_b-1].begin(),members[index_b-1].end());
 	}
-	for(size_t i(0); i<members.size(); ++i)
-		std::sort(members[i].begin(), members[i].end());
 }
 
 // for counting matching tree nodes (all children indentical) between two hierarchical tree structures ('merges')
 // adds to 'nodecounts' (for calculating hclust bootstrap p-values)
 void add_equal_nodes(Merge const & merge1, Merge const & merge2, Counts & nodecounts){
-	// merge is a two-column matrix of integers from hclust
-	size_t const nrow1(merge1.size());
-
-	Members memb1(merge1.size()), memb2(merge2.size());
+	// the task here is to check for each edge in the reference merge 'merge1', 
+	// whether there is any equal edge in the bootstrap merge 'merge2' that contains the same child membership;
+	// this will mean that the bootstrap merge reproduced the reference edge
+	Members memb1, memb2;
 	get_members(merge1, memb1);
 	get_members(merge2, memb2);
-
-	// assumes unique members and does not re-compare to previously matched ones
-	std::vector<bool> matched(nrow1,false);
 	for(size_t i1(0); i1<memb1.size(); ++i1){
-		size_t const msz1(memb1[i1].size());
-		for(size_t i2(0); i2<memb2.size(); ++i2){
-			if(matched[i2]) continue;
-			size_t const msz2(memb2[i2].size());
-			if(msz1 != msz2) continue;
-			bool match(true);
-			for(size_t j(0); j<msz2; ++j){
-				if(memb1[i1][j] != memb2[i2][j]) {match=false; break;}
-			}
-			if(match){
-				//std::cout << "counting node at " << i1 << std::endl;
-				nodecounts[i1] += 1;
-				matched[i2] = true;
+		size_t const m1sz( memb1[i1].size() );
+		for(Members::const_iterator m2(memb2.begin()); m2!=memb2.end(); ++m2){
+			// sizes must match
+			if(m2->size() != m1sz) continue;
+			// elements must match
+			if(*m2 == memb1[i1]){
+				nodecounts[i1]++;
+				break;
 			}
 		}
 	}
@@ -723,9 +722,12 @@ int main(int argc, char *argv[]) {
 	std::cout << std::endl;
 
 	std::string distmethod("euclidean"), prefix("");
+	std::string seqsfile("");
 	Filenames datafilenames;
 	unsigned bootstraps(0), verbosity(1);
 	int method(2); // average by default
+	int kmerlen(6);
+	t_float kmerweight(1.0);
 	bool square_distances_as_expected(true), square_distances(false), edgelist(false);
 	t_float scale(1.0), edgelist_fraction(0); // ratio of columns to resample for multiscale bootstrapping
 
@@ -743,6 +745,18 @@ int main(int argc, char *argv[]) {
 		} else if (arg == "-s") {
 			if (++i >= argc) usage_error();
 			scale = atof(argv[i]);
+
+		} else if (arg == "-ss") {
+			if (++i >= argc) usage_error();
+			seqsfile = argv[i];
+
+		} else if (arg == "-k") {
+			if (++i >= argc) usage_error();
+			kmerlen = atoi(argv[i]);
+
+		} else if (arg == "-kw") {
+			if (++i >= argc) usage_error();
+			kmerweight = atof(argv[i]);
 
 		} else if (arg == "-m") {
 			if (++i >= argc) usage_error();
@@ -772,6 +786,16 @@ int main(int argc, char *argv[]) {
 
 		else datafilenames.push_back(argv[i]);
 	}
+
+//	// to do/test: read in 'promoters' and pre-compute kmers by fast hashing (variable but 6-mers by default?) for efficient integrated 'motif' similarity scoring
+//	Sequences motifregions, kmers;
+//	KMerCount bgkmers;
+//	KMerCounts kmercounts;
+//	if(seqsfile!=""){
+//		read_sequences(seqsfile, motifregions);
+//		create_kmers(kmers,klen);
+//		count_kmers(motifregions,kmers,kmercounts,bgkmers);
+//	}
 
 	// square distances? expected by Ward, centroid and median methods in current version (1.1.13) of fastcluster.\n"
 	if(method>3 && square_distances_as_expected) square_distances = true;
@@ -823,6 +847,15 @@ int main(int argc, char *argv[]) {
 	// feed whole matrix to distance functions:
 	// for Spearman, this way can pre-compute ranks prior to the N^2 loop
 	get_distances(matrices.front(), colinds, dist, distmethod, square_distances);
+
+	// to do/test: add a fast and straightforward integrated k-mer (6-mers?) similarity score for "promoters" & test with a range of weights
+	// some kind of basic kmer-based similarity score...
+	//
+	// n shared kmers? easy; biased?
+	// distance = kmerweight * (1 - n_shared/maxshared)
+
+	// P(n_shared_kmers|kmers1,kmers2,bgkmers)? [how unlikely is it to see this many shared kmers by random chance?]
+	// distance = kmerweight * (?)
 
 	// optional: output distances as edge list
 	if (edgelist) write_edgelist(labels, dist, NN, edgelist_fraction);
