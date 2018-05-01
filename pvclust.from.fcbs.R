@@ -13,19 +13,19 @@ source('hclust.from.fcbs.R')
 pvclust_from_cpp = function(hcfile,countfiles=NULL){
 	require(pvclust)
 	hc = hc_from_fcbs(hcfile)
-	if(is.null(countfiles)) countfiles = dir('.','curr',recursive=T)
-#	countfiles = readLines(countfiles)
-	rs = gsub('/.*','',countfiles)
+	if(is.null(countfiles)) countfiles = dir('.','countscurrent',recursive=T)
+	cat(countfiles, '\n')
 	counts = do.call(cbind, lapply(countfiles,function(x){as.integer(readLines(x))}))
 
-	# fcbs writes of the number of interations it actually finished (reading this is especially useful for incomplete numbers of iterations)
-#	iters = lapply(rs, function(x){as.integer(readLines(sprintf('%s/lastiter',x))[1])})
-	iters = lapply(rs, function(x){as.integer(readLines(sprintf('%s/lastiter',x))[1])+1})
+	rs = gsub('/.*','',countfiles)
+	cat(rs, '\n')
+	iters = sapply(rs, function(x){as.integer(readLines(sprintf('%s/lastiter',x))[1])})
+	cat(iters, '\n')
 
 	rs = as.numeric(rs)
 	mboot = list()
 	for(i in 1:ncol(counts)){
-		mboot[[i]] = list(edges.cnt=counts[,i], nboot=iters[[i]], r=rs[i])
+		mboot[[i]] = list(edges.cnt=counts[,i], nboot=iters[i], r=rs[i])
 	}
 
 	for(mb in mboot){
