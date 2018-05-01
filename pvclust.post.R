@@ -1,6 +1,6 @@
 source('hclust.lib.R')
-source('pvclust.from.fcbs.R')
-#source('pvclust.from.fcbs.comb.R')
+#source('pvclust.from.fcbs.R')
+source('pvclust.from.fcbs.comb.R')
 source('plot_pvdend.R')
 source('dendindexed.R')
 require(pvclust)
@@ -48,6 +48,20 @@ if(!exists('pvc')){
 	pvc = pvclust_from_cpp('1.0/hc')
 	save(pvc,file='pvc.RData')
 }
+
+# save a merge including all info and pvclust bootstrap results for external dendrograms
+# convert to pvdend format/indexing for convenience (existing code (e.g. javascript) based on SciPy functions)
+odnd = pvc$hclust$merge
+a = odnd[,1]
+a[a>0] = a[a>0] + length(a)
+a[a<0] = a[a<0] * -1 - 1
+odnd[,1] = a
+b = odnd[,2]
+b[b>0] = b[b>0] + length(b)
+b[b<0] = b[b<0] * -1 - 1
+odnd[,2] = b
+odnd = cbind(odnd, pvc$hclust$height, pvc$hclust$n, round(pvc$edges[,1],4))
+write.table(odnd,'pvcdendro.tsv',quote=F,row.names=F,col.names=F,sep='\t')
 
 hc = pvc$hclust
 

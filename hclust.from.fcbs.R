@@ -5,6 +5,7 @@ hc_from_fcbs = function(hcfile='hc',dist.method='',hclust.method='fastcluster'){
 	class(hc) = 'hclust'
 	hc$merge =  as.integer( unlist( strsplit(readLines( sprintf('%s.merge',hcfile)),' ')))
 	hc$height = as.numeric( unlist( strsplit(readLines( sprintf('%s.height',hcfile)),' ')))
+	hc$n =      as.integer( unlist( strsplit(readLines( sprintf('%s.n',hcfile)),' ')))
 	hc$order =  as.integer( unlist( strsplit(readLines( sprintf('%s.order',hcfile)),' ')))
 	hc$labels =             unlist( strsplit(readLines( sprintf('%s.labels',hcfile)),' '))
 

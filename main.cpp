@@ -35,6 +35,7 @@ struct HclustResult {
 	Labels labels;
 	Merge merge;
 	Values height;
+	Ints n;
 	Ints order;
 	Values pydend;
 };
@@ -515,6 +516,12 @@ void output_hc(HclustResult const & result, std::string prefix=""){
 	of << '\n';
 	of.close();
 
+	fname = prefix+"n";
+	of.open(fname.c_str());
+	std::copy(result.n.begin(), result.n.end(), std::ostream_iterator<int>(of, " "));
+	of << '\n';
+	of.close();
+
 	fname = prefix+"order";
 	of.open(fname.c_str());
 	std::copy(result.order.begin(), result.order.end(), std::ostream_iterator<int>(of, " "));
@@ -574,6 +581,7 @@ void run_fastcluster(HclustResult & hc_result, t_float * dist, int method, bool 
 
 	// here init vector sizes and pass array pointers to fastcluster
 	hc_result.height.resize(N-1);
+	hc_result.n.resize(N-1);
 	hc_result.order.resize(N);
 	hc_result.pydend.resize((N-1)*4);
 
@@ -582,10 +590,10 @@ void run_fastcluster(HclustResult & hc_result, t_float * dist, int method, bool 
 
 	if (method==METHOD_METR_CENTROID ||
 			method==METHOD_METR_MEDIAN){
-		generate_R_dendrogram<true>(&merge[0], &hc_result.height[0], &hc_result.order[0], hc, N);
+		generate_R_dendrogram<true>(&merge[0], &hc_result.height[0], &hc_result.n[0], &hc_result.order[0], hc, N);
 		generate_SciPy_dendrogram<true>(&hc_result.pydend[0], hc, N);
 	} else {
-		generate_R_dendrogram<false>(&merge[0], &hc_result.height[0], &hc_result.order[0], hc, N);
+		generate_R_dendrogram<false>(&merge[0], &hc_result.height[0], &hc_result.n[0], &hc_result.order[0], hc, N);
 		generate_SciPy_dendrogram<false>(&hc_result.pydend[0], hc, N);
 	}
 
