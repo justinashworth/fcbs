@@ -1,6 +1,7 @@
 source('hclust.lib.R')
-#source('pvclust.from.fcbs.R')
-source('pvclust.from.fcbs.comb.R')
+source('pvclust.from.fcbs.R')
+# use this one instead if multiple independent bootstrapping jobs per sampling level ('r') were run
+#source('pvclust.from.fcbs.comb.R')
 source('plot_pvdend.R')
 source('dendindexed.R')
 require(pvclust)

@@ -13,7 +13,7 @@ source('hclust.from.fcbs.R')
 pvclust_from_cpp = function(hcfile,countfiles=NULL){
 	require(pvclust)
 	hc = hc_from_fcbs(hcfile)
-	if(is.null(countfiles)) countfiles = dir('.','countscurrent',recursive=T)
+	if(is.null(countfiles)) countfiles = dir('.','^countscurrent$',recursive=T)
 	cat(countfiles, '\n')
 	counts = do.call(cbind, lapply(countfiles,function(x){as.integer(readLines(x))}))
 
