@@ -1,8 +1,9 @@
 /*
   fastcluster: Fast hierarchical clustering routines for R and Python
 
-  Copyright © 2011 Daniel Müllner
-  <http://danifold.net>
+  Copyright:
+    * Until package version 1.1.23: © 2011 Daniel Müllner <http://danifold.net>
+    * All changes from version 1.1.24 on: © Google Inc. <http://google.com>
 
   This library implements various fast algorithms for hierarchical,
   agglomerative clustering methods:
@@ -35,23 +36,31 @@
   exception if a NaN distance value occurs.
 */
 
-#include <cstddef> // for std::ptrdiff_t
-#include <limits> // for std::numeric_limits<...>::infinity()
-#include <algorithm> // for std::fill_n
-#include <stdexcept> // for std::runtime_error
-#include <string> // for std::string
-
-#define fc_isnan(X) ((X)!=(X))
-
-// Microsoft Visual Studio does not have fenv.h
+// Older versions of Microsoft Visual Studio do not have the fenv header.
 #ifdef _MSC_VER
 #if (_MSC_VER == 1500 || _MSC_VER == 1600)
 #define NO_INCLUDE_FENV
 #endif
 #endif
-#ifndef NO_INCLUDE_FENV
+// NaN detection via fenv might not work on systems with software
+// floating-point emulation (bug report for Debian armel).
+#ifdef __SOFTFP__
+#define NO_INCLUDE_FENV
+#endif
+#ifdef NO_INCLUDE_FENV
+#pragma message("Do not use fenv header.")
+#else
+#pragma message("Use fenv header. If there is a warning about unknown #pragma STDC FENV_ACCESS, this can be ignored.")
+#pragma STDC FENV_ACCESS on
 #include <fenv.h>
 #endif
+
+#include <cmath> // for std::pow, std::sqrt
+#include <cstddef> // for std::ptrdiff_t
+#include <limits> // for std::numeric_limits<...>::infinity()
+#include <algorithm> // for std::fill_n
+#include <stdexcept> // for std::runtime_error
+#include <string> // for std::string
 
 #include <cfloat> // also for DBL_MAX, DBL_MIN
 #ifndef DBL_MANT_DIG
@@ -70,8 +79,31 @@
 #endif
 
 #ifndef INT32_MAX
+#ifdef _MSC_VER
+#if _MSC_VER >= 1600
 #define __STDC_LIMIT_MACROS
 #include <stdint.h>
+#else
+typedef __int32 int_fast32_t;
+typedef __int64 int64_t;
+#endif
+#else
+#define __STDC_LIMIT_MACROS
+#include <stdint.h>
+#endif
+#endif
+
+#define FILL_N std::fill_n
+#ifdef _MSC_VER
+#if _MSC_VER < 1600
+#undef FILL_N
+#define FILL_N stdext::unchecked_fill_n
+#endif
+#endif
+
+// Suppress warnings about (potentially) uninitialized variables.
+#ifdef _MSC_VER
+	#pragma warning (disable:4700)
 #endif
 
 #ifndef HAVE_DIAGNOSTIC
@@ -110,6 +142,11 @@ typedef int_fast32_t t_index;
 #endif
 typedef double t_float;
 
+/* Method codes.
+
+   These codes must agree with the METHODS array in fastcluster.R and the
+   dictionary mthidx in fastcluster.py.
+*/
 enum method_codes {
   // non-Euclidean methods
   METHOD_METR_SINGLE           = 0,
@@ -117,25 +154,25 @@ enum method_codes {
   METHOD_METR_AVERAGE          = 2,
   METHOD_METR_WEIGHTED         = 3,
   METHOD_METR_WARD             = 4,
+  METHOD_METR_WARD_D           = METHOD_METR_WARD,
   METHOD_METR_CENTROID         = 5,
-  METHOD_METR_MEDIAN           = 6
+  METHOD_METR_MEDIAN           = 6,
+  METHOD_METR_WARD_D2          = 7,
+
+  MIN_METHOD_CODE              = 0,
+  MAX_METHOD_CODE              = 7
 };
 
-enum {
+enum method_codes_vector {
   // Euclidean methods
   METHOD_VECTOR_SINGLE         = 0,
   METHOD_VECTOR_WARD           = 1,
   METHOD_VECTOR_CENTROID       = 2,
-  METHOD_VECTOR_MEDIAN         = 3
-};
+  METHOD_VECTOR_MEDIAN         = 3,
 
-enum {
-   // Return values
-  RET_SUCCESS        = 0,
-  RET_MEMORY_ERROR   = 1,
-  RET_STL_ERROR      = 2,
-  RET_UNKNOWN_ERROR  = 3
- };
+  MIN_METHOD_VECTOR_CODE       = 0,
+  MAX_METHOD_VECTOR_CODE       = 3
+};
 
 // self-destructing array pointer
 template <typename type>
@@ -156,7 +193,7 @@ public:
   auto_array_ptr(index const size, value const val)
     : ptr(new type[size])
   {
-    std::fill_n(ptr, size, val);
+    FILL_N(ptr, size, val);
   }
   ~auto_array_ptr() {
     delete [] ptr; }
@@ -171,7 +208,7 @@ public:
   template <typename index, typename value>
   void init(index const size, value const val) {
     init(size);
-    std::fill_n(ptr, size, val);
+    FILL_N(ptr, size, val);
   }
   inline operator type *() const { return ptr; }
 };
@@ -179,17 +216,11 @@ public:
 struct node {
   t_index node1, node2;
   t_float dist;
-
-  /*
-  inline bool operator< (const node a) const {
-    return this->dist < a.dist;
-  }
-  */
-
-  inline friend bool operator< (const node a, const node b) {
-    return (a.dist < b.dist);
-  }
 };
+
+inline bool operator< (const node a, const node b) {
+  return (a.dist < b.dist);
+}
 
 class cluster_result {
 private:
@@ -216,7 +247,7 @@ public:
 
   void sqrt() const {
     for (node * ZZ=Z; ZZ!=Z+pos; ++ZZ) {
-      ZZ->dist = ::sqrt(ZZ->dist);
+      ZZ->dist = std::sqrt(ZZ->dist);
     }
   }
 
@@ -226,14 +257,14 @@ public:
 
   void sqrtdouble(const t_float) const { // ignore the argument
     for (node * ZZ=Z; ZZ!=Z+pos; ++ZZ) {
-      ZZ->dist = ::sqrt(2*ZZ->dist);
+      ZZ->dist = std::sqrt(2*ZZ->dist);
     }
   }
 
   #ifdef R_pow
   #define my_pow R_pow
   #else
-  #define my_pow pow
+  #define my_pow std::pow
   #endif
 
   void power(const t_float p) const {
@@ -357,6 +388,7 @@ public:
   }
 };
 
+#define fc_isnan(X) ((X)!=(X))
 class nan_error{};
 #ifdef FE_INVALID
 class fenv_error{};
@@ -530,7 +562,7 @@ inline static void f_median( t_float * const b, const t_float a, const t_float c
   #endif
 }
 
-template <const unsigned char method, typename t_members>
+template <method_codes method, typename t_members>
 static void NN_chain_core(const t_index N, t_float * const D, t_members * const members, cluster_result & Z2) {
 /*
     N: integer
@@ -896,7 +928,7 @@ private:
 
 };
 
-template <const unsigned char method, typename t_members>
+template <method_codes method, typename t_members>
 static void generic_linkage(const t_index N, t_float * const D, t_members * const members, cluster_result & Z2) {
   /*
     N: integer, number of data points
@@ -1383,7 +1415,7 @@ static void MST_linkage_core_vector(const t_index N,
   }
 }
 
-template <const unsigned char method, typename t_dissimilarity>
+template <method_codes_vector method, typename t_dissimilarity>
 static void generic_linkage_vector(const t_index N,
                                    t_dissimilarity & dist,
                                    cluster_result & Z2) {
@@ -1423,7 +1455,7 @@ static void generic_linkage_vector(const t_index N,
     for (idx=j=i+1; j<N; ++j) {
       t_float tmp;
       switch (method) {
-      case METHOD_METR_WARD:
+      case METHOD_VECTOR_WARD:
         tmp = dist.ward_initial(i,j);
         break;
       default:
@@ -1435,7 +1467,7 @@ static void generic_linkage_vector(const t_index N,
       }
     }
     switch (method) {
-    case METHOD_METR_WARD:
+    case METHOD_VECTOR_WARD:
       mindist[i] = t_dissimilarity::ward_initial_conversion(min);
       break;
     default:
@@ -1456,7 +1488,7 @@ static void generic_linkage_vector(const t_index N,
       // Recompute the minimum mindist[idx1] and n_nghbr[idx1].
       n_nghbr[idx1] = j = active_nodes.succ[idx1]; // exists, maximally N-1
       switch (method) {
-      case METHOD_METR_WARD:
+      case METHOD_VECTOR_WARD:
         min = dist.ward(idx1,j);
         for (j=active_nodes.succ[j]; j<N; j=active_nodes.succ[j]) {
           t_float const tmp = dist.ward(idx1,j);
@@ -1492,11 +1524,11 @@ static void generic_linkage_vector(const t_index N,
     Z2.append(node1, node2, mindist[idx1]);
 
     switch (method) {
-    case METHOD_METR_WARD:
-    case METHOD_METR_CENTROID:
+    case METHOD_VECTOR_WARD:
+    case METHOD_VECTOR_CENTROID:
       dist.merge_inplace(idx1, idx2);
       break;
-    case METHOD_METR_MEDIAN:
+    case METHOD_VECTOR_MEDIAN:
       dist.merge_inplace_weighted(idx1, idx2);
       break;
     default:
@@ -1510,7 +1542,7 @@ static void generic_linkage_vector(const t_index N,
 
     // Update the distance matrix
     switch (method) {
-    case METHOD_METR_WARD:
+    case METHOD_VECTOR_WARD:
       /*
         Ward linkage.
 
@@ -1582,7 +1614,7 @@ static void generic_linkage_vector(const t_index N,
   }
 }
 
-template <const unsigned char method, typename t_dissimilarity>
+template <method_codes_vector method, typename t_dissimilarity>
 static void generic_linkage_vector_alternative(const t_index N,
                                                t_dissimilarity & dist,
                                                cluster_result & Z2) {
@@ -1616,7 +1648,7 @@ static void generic_linkage_vector_alternative(const t_index N,
     for (idx=j=0; j<i; ++j) {
       t_float tmp;
       switch (method) {
-      case METHOD_METR_WARD:
+      case METHOD_VECTOR_WARD:
         tmp = dist.ward_initial(i,j);
         break;
       default:
@@ -1628,7 +1660,7 @@ static void generic_linkage_vector_alternative(const t_index N,
       }
     }
     switch (method) {
-    case METHOD_METR_WARD:
+    case METHOD_VECTOR_WARD:
       mindist[i] = t_dissimilarity::ward_initial_conversion(min);
       break;
     default:
@@ -1667,7 +1699,7 @@ static void generic_linkage_vector_alternative(const t_index N,
       // Recompute the minimum mindist[idx1] and n_nghbr[idx1].
       n_nghbr[idx1] = j = active_nodes.start;
       switch (method) {
-      case METHOD_METR_WARD:
+      case METHOD_VECTOR_WARD:
         min = dist.ward_extended(idx1,j);
         for (j=active_nodes.succ[j]; j<idx1; j=active_nodes.succ[j]) {
           t_float tmp = dist.ward_extended(idx1,j);
@@ -1701,12 +1733,12 @@ static void generic_linkage_vector_alternative(const t_index N,
 
     if (i<2*N_1) {
       switch (method) {
-      case METHOD_METR_WARD:
-      case METHOD_METR_CENTROID:
+      case METHOD_VECTOR_WARD:
+      case METHOD_VECTOR_CENTROID:
         dist.merge(idx1, idx2, i);
         break;
 
-      case METHOD_METR_MEDIAN:
+      case METHOD_VECTOR_MEDIAN:
         dist.merge_weighted(idx1, idx2, i);
         break;
 
@@ -1715,7 +1747,7 @@ static void generic_linkage_vector_alternative(const t_index N,
       }
 
       n_nghbr[i] = active_nodes.start;
-      if (method==METHOD_METR_WARD) {
+      if (method==METHOD_VECTOR_WARD) {
         /*
           Ward linkage.
 
@@ -1759,24 +1791,91 @@ static void generic_linkage_vector_alternative(const t_index N,
   }
 }
 
+/*
+  Convenience class for the output array: automatic counter.
+*/
+class linkage_output {
+private:
+  t_float * Z;
+
+public:
+  linkage_output(t_float * const Z_)
+    : Z(Z_)
+  {}
+
+  void append(const t_index node1, const t_index node2, const t_float dist,
+              const t_float size) {
+    if (node1<node2) {
+      *(Z++) = static_cast<t_float>(node1);
+      *(Z++) = static_cast<t_float>(node2);
+    }
+    else {
+      *(Z++) = static_cast<t_float>(node2);
+      *(Z++) = static_cast<t_float>(node1);
+    }
+    *(Z++) = dist;
+    *(Z++) = size;
+  }
+};
+
+/*
+  Generate the SciPy-specific output format for a dendrogram from the
+  clustering output.
+
+  The list of merging steps can be sorted or unsorted.
+*/
+// The size of a node is either 1 (a single point) or is looked up from
+// one of the clusters.
+#define Psize_(r_) ( ((r_<N) ? 1 : Z_(r_-N,3)) )
+
+template <const bool sorted>
+static void generate_SciPy_dendrogram(t_float * const Z, cluster_result & Z2, const t_index N) {
+  // The array "nodes" is a union-find data structure for the cluster
+  // identities (only needed for unsorted cluster_result input).
+  union_find nodes(sorted ? 0 : N);
+  if (!sorted) {
+    std::stable_sort(Z2[0], Z2[N-1]);
+  }
+
+  linkage_output output(Z);
+  t_index node1, node2;
+
+  for (node const * NN=Z2[0]; NN!=Z2[N-1]; ++NN) {
+    // Get two data points whose clusters are merged in step i.
+    if (sorted) {
+      node1 = NN->node1;
+      node2 = NN->node2;
+    }
+    else {
+      // Find the cluster identifiers for these points.
+      node1 = nodes.Find(NN->node1);
+      node2 = nodes.Find(NN->node2);
+      // Merge the nodes in the union-find data structure by making them
+      // children of a new node.
+      nodes.Union(node1, node2);
+    }
+    output.append(node1, node2, NN->dist, Psize_(node1)+Psize_(node2));
+  }
+}
+
 struct pos_node {
   t_index pos;
   int node;
 };
 
 void order_nodes(const int N, const int * const merge, const t_index * const node_size, int * const order) {
-  /* Parameters:
-     N         : number of data points
-     merge     : (N-1)×2 array which specifies the node indices which are
-                 merged in each step of the clustering procedure.
-                 Negative entries -1...-N point to singleton nodes, while
-                 positive entries 1...(N-1) point to nodes which are themselves
-                 parents of other nodes.
-     node_size : array of node sizes - makes it easier
-     order     : output array of size N
+  // Parameters:
+  // N         : number of data points
+  // merge     : (N-1)×2 array which specifies the node indices which are
+  //             merged in each step of the clustering procedure.
+  //             Negative entries -1...-N point to singleton nodes, while
+  //             positive entries 1...(N-1) point to nodes which are themselves
+  //             parents of other nodes.
+  // node_size : array of node sizes - makes it easier
+  // order     : output array of size N
 
-     Runtime: Θ(N)
-  */
+  // Runtime: Θ(N)
+
   auto_array_ptr<pos_node> queue(N/2);
 
   int parent;
@@ -1798,8 +1897,7 @@ void order_nodes(const int N, const int * const merge, const t_index * const nod
       order[pos] = -child;
       ++pos;
     }
-    else { /* compound node: put it on top of the queue and decompose it
-              in a later iteration. */
+    else { // compound node: put it on top of the queue and decompose it in a later iteration
       queue[idx].pos = pos;
       queue[idx].node = child-1; // convert index-1 based to index-0 based
       ++idx;
@@ -1818,11 +1916,10 @@ void order_nodes(const int N, const int * const merge, const t_index * const nod
   } while (idx>0);
 }
 
-
-#define size_(r_) ( ((r_<N) ? 1 : node_size[r_-N]) )
+#define Rsize_(r_) ( ((r_<N) ? 1 : node_size[r_-N]) )
 
 template <const bool sorted>
-void generate_R_dendrogram(int * const merge, double * const height, int * const order, cluster_result & Z2, const int N) {
+void generate_R_dendrogram(int * const merge, double * const height, int * const n, int * const order, cluster_result & Z2, const int N) {
   // The array "nodes" is a union-find data structure for the cluster
   // identites (only needed for unsorted cluster_result input).
   union_find nodes(sorted ? 0 : N);
@@ -1853,23 +1950,22 @@ void generate_R_dendrogram(int * const merge, double * const height, int * const
       node1 = node2;
       node2 = tmp;
     }
-    /* Conversion between labeling conventions.
-       Input:  singleton nodes 0,...,N-1
-               compound nodes  N,...,2N-2
-       Output: singleton nodes -1,...,-N
-               compound nodes  1,...,N
-    */
+    // Conversion between labeling conventions.
+    // Input:  singleton nodes 0,...,N-1
+    //         compound nodes  N,...,2N-2
+    // Output: singleton nodes -1,...,-N
+    //         compound nodes  1,...,N
     merge[i]     = (node1<N) ? -static_cast<int>(node1)-1
                               : static_cast<int>(node1)-N+1;
     merge[i+N-1] = (node2<N) ? -static_cast<int>(node2)-1
                               : static_cast<int>(node2)-N+1;
     height[i] = Z2[i]->dist;
-    node_size[i] = size_(node1) + size_(node2);
+    node_size[i] = Rsize_(node1) + Rsize_(node2);
+		n[i] = node_size[i];
   }
 
   order_nodes(N, merge, node_size, order);
 }
-
 
 #if HAVE_VISIBILITY
 #pragma GCC visibility pop
